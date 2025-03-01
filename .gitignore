@@ -1,0 +1,8 @@
+.vscode
+.conda
+__pycache__
+*.pyc
+*.gz
+*.log
+
+/seed_pages/output
