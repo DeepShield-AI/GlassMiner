@@ -17,12 +17,12 @@ def shingle(text, k):
 
 def jaccard_similarity(shingles1, shingles2):
     intersection = shingles1.intersection(shingles2)
-    # union = shingles1.union(shingles2)
-    # return len(intersection) / len(union)
+    union = shingles1.union(shingles2)
+    return len(intersection) / len(union)
     # backup plan, because the webpages using the same template may add more text
     # we only care about the oriningal small part of the text
-    min_len = min(len(shingles1), len(shingles2))
-    return len(intersection) / min_len
+    # min_len = min(len(shingles1), len(shingles2))
+    # return len(intersection) / min_len
 
 def calculate_jaccard_similarity(verified_lg_pages, single_size):
     """
@@ -198,17 +198,17 @@ if __name__ == "__main__":
     # calculate the Jaccard similarity and cluster the seed pages    
     if mode == 1:
         try:
-            mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "rb"))
+            mat_sim = pkl.load(open(os.path.join(OLD_LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "rb"))
         except:
             mat_sim = calculate_jaccard_similarity(verified_lg_pages, SHINGLE_SIZE)
-            pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "wb"))
+            pkl.dump(mat_sim, open(os.path.join(OLD_LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "wb"))
         clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, CLUSTER_THRESHOLD)
         print(f"Total {len(clusters)} clusters are found.")
         # save the clustering results to file
         with open(os.path.join(OUTPUT_DIR, "clusters.json".format(SHINGLE_SIZE, CLUSTER_THRESHOLD)), "w") as f:
             json.dump(clusters, f)
     else:
-        os.makedirs(LOGS_DIR, exist_ok=True)
+        os.makedirs(OLD_LOGS_DIR, exist_ok=True)
         gt_clusters = load_gt_clusters(verified_lg_pages)
         # log three 2-D matrices for the metrics with shape (len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST))
         mat_gt_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
@@ -216,10 +216,10 @@ if __name__ == "__main__":
         mat_clst_count = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.int32)
         for idx_1, shingle_size in enumerate(SHINGLE_LEN_LIST):
             try:
-                mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "rb"))
+                mat_sim = pkl.load(open(os.path.join(OLD_LOGS_DIR, SIM_FILE.format(shingle_size)), "rb"))
             except:
                 mat_sim = calculate_jaccard_similarity(verified_lg_pages, shingle_size)
-                pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "wb"))
+                pkl.dump(mat_sim, open(os.path.join(OLD_LOGS_DIR, SIM_FILE.format(shingle_size)), "wb"))
             # Testing Logic: change different threshold to see the clustering results
             for idx_2, threshold in enumerate(CLUSTER_THR_LIST):
                 clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold)
@@ -229,7 +229,7 @@ if __name__ == "__main__":
                 mat_clst_count[idx_2][idx_1] = len(clusters)
                 print(f"Total {len(clusters)} clusters are found.")
                 # save the clustering results to file
-                with open(os.path.join(LOGS_DIR, "clusters_sh={}_th={}.json".format(shingle_size, threshold)), "w") as f:
+                with open(os.path.join(OLD_LOGS_DIR, "clusters_sh={}_th={}.json".format(shingle_size, threshold)), "w") as f:
                     json.dump(clusters, f)
             # threshold = select_best_threshold(CLUSTER_THR_LIST, log_entropy, log_minority)
             # clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold)
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         df_entropy = pd.DataFrame(mat_gt_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
         df_minority = pd.DataFrame(mat_res_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
         df_clst_count = pd.DataFrame(mat_clst_count, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
-        with pd.ExcelWriter(os.path.join(OUTPUT_DIR, "clustering_metrics.xlsx")) as writer:
+        with pd.ExcelWriter(os.path.join(OUTPUT_DIR, "clustering_metrics_old.xlsx")) as writer:
             df_entropy.to_excel(writer, sheet_name="gt_entropy")
             df_minority.to_excel(writer, sheet_name="res_entropy")
             df_clst_count.to_excel(writer, sheet_name="cluster_count")

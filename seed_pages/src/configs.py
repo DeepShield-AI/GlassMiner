@@ -1,5 +1,5 @@
 import os
-
+import numpy as np
 # ====================== Directory & path Configs ====================== #
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -9,9 +9,12 @@ PROCS_DIR = os.path.join(OUTPUT_DIR, "processed")
 VERIFIED_DIR = os.path.join(OUTPUT_DIR, "verified")
 UNVERIFIED_DIR = os.path.join(OUTPUT_DIR, "unverified")
 UNRELATED_DIR = os.path.join(OUTPUT_DIR, "unrelated")
+LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
+OLD_LOGS_DIR = os.path.join(OUTPUT_DIR, "old_logs")
 
 AVAI_FILE = "available_lg_page_list.json"
 FAIL_FILE = "failed_lg_page_list.json"
+SIM_FILE = "similar_matrix_{}.bin"
 
 # ====================== Crawler Configs ====================== #
 
@@ -64,4 +67,7 @@ FILE_NAME_MAX_LENGTH = 200
 SHINGLE_SIZE = 4  # The size of the shingle, important for the Jaccard similarity
 IGNORE_THRESHOLD = 4 # The text with characters less than this threshold will be ignored
 TEXT_LEN_THRESHOLD = 100  # The threshold of the text length, remove the text if it's too long
-CLUSTER_THRESHOLD = 0.3  # The threshold of the Jaccard similarity for clustering
+CLUSTER_THRESHOLD = 0.2  # The threshold of the Jaccard similarity for clustering
+
+SHINGLE_LEN_LIST = [2, 3, 4, 5, 6]
+CLUSTER_THR_LIST = np.linspace(0.1, 0.5, 41, dtype=np.float32)

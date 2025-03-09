@@ -194,11 +194,11 @@ def get_from_asset_engine() -> list:
     lg_page_info = []
     # parse the csv and get the pages
     asset_info = pd.read_csv(src_file)
-    for idx, row in asset_info.itertuples():
+    for row in asset_info.itertuples(index=False):
         host = row[0]
         proto = row[3]
-        # keep the first 30 characters
-        name = row[4][:30]
+        # Using IP for the name
+        name = row[1]
         # if the host is empty, then skip
         if host == "":
             continue
