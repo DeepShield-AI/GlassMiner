@@ -70,4 +70,4 @@ TEXT_LEN_THRESHOLD = 100  # The threshold of the text length, remove the text if
 CLUSTER_THRESHOLD = 0.2  # The threshold of the Jaccard similarity for clustering
 
 SHINGLE_LEN_LIST = [2, 3, 4, 5, 6]
-CLUSTER_THR_LIST = np.linspace(0.1, 0.5, 41, dtype=np.float32)
+CLUSTER_THR_LIST = np.linspace(0.3, 0.9, 61, dtype=np.float32)

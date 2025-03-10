@@ -4,5 +4,5 @@ __pycache__
 *.pyc
 *.gz
 *.log
-
+test.*
 /seed_pages/output
