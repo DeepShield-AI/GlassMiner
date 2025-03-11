@@ -224,7 +224,7 @@ lg_collection_funcs = [
 
 # ================== Other utils functions ================== #
 
-def deduplicate_lg_page_by_url(raw_lg_page_list: list) -> list:
+def pre_deduplicate_lg_page(raw_lg_page_list: list) -> list:
     """
     Deduplicate the LG page list by URL. We treat below URLs as the same:
     1. Two urls with only tailing slash difference: http://example.com/ and http://example.com
@@ -257,6 +257,17 @@ def deduplicate_lg_page_by_url(raw_lg_page_list: list) -> list:
         })
     print(f"Unsupported urls: {unsupported_cnt}")
     return deduplicated_lg_page_list
+
+def post_deduplicate_lg_page(available_lg_page_list: list) -> list:
+    """
+    Directly remove the duplicated LG pages by URL.
+    """
+    unique_url_dict = {}
+    for lg_info in available_lg_page_list:
+        url = lg_info["url"]
+        if url not in unique_url_dict:
+            unique_url_dict[url] = lg_info
+    return list(unique_url_dict.values())
 
 def remove_script_and_style(html):
     """
@@ -357,11 +368,13 @@ if __name__ == "__main__":
         raw_lg_page_list += tmp_lg_list
         print(f"Get {len(tmp_lg_list)} LG pages from {func.__name__}, {len(raw_lg_page_list)} LG pages are collected in total.")    
     print("Now Start deduplication...")
-    dedup_lg_page_list = deduplicate_lg_page_by_url(raw_lg_page_list)    
+    dedup_lg_page_list = pre_deduplicate_lg_page(raw_lg_page_list)    
     print(f"Get {len(dedup_lg_page_list)} LG pages after deduplication.")
     
     print("Now Start checking the availability of LG pages...")
-    available_lg_page_list, failed_lg_page_list = check_availabilty_and_download(dedup_lg_page_list)
+    available_lg_page_list, failed_lg_page_list = check_availabilty_and_download(dedup_lg_page_list)    
+    available_lg_page_list = post_deduplicate_lg_page(available_lg_page_list)
+    
     with open(os.path.join(OUTPUT_DIR, AVAI_FILE), "w") as f:
         json.dump(available_lg_page_list, f, indent=4)
     with open(os.path.join(OUTPUT_DIR, FAIL_FILE), "w") as f:

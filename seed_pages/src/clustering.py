@@ -9,13 +9,11 @@ import pandas as pd
 import pickle as pkl
 import regex as re
 from disjoint_set import DisjointSet
-from transformers import BertTokenizer
 
 # Import the customized content
 from configs import *
 
-# 加载多语言分词器
-TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
+TOKINIZER = None
 
 def is_symbols(token):
     if re.match(PTN_CHAR, token):
@@ -39,7 +37,7 @@ def jaccard_similarity(shingles1, shingles2):
     intersection = shingles1.intersection(shingles2)
     # we only care about the oriningal small part of the text
     min_len = min(len(shingles1), len(shingles2))
-    return len(intersection) / min_len
+    return len(intersection) / min_len if min_len > 0 else 0
 
 def calculate_jaccard_similarity(verified_lg_pages, single_size):
     """
@@ -153,21 +151,6 @@ def load_gt_clusters(verified_lg_pages):
         gt_clusters_with_idx[cluster_id] = cluster_idx
     return gt_clusters_with_idx
 
-def select_best_threshold(test_threshold, log_entropy, log_minority):
-    """
-    Check the best threshold for clustering by validating the ground truth clusters.
-    Dump the metrics to one csv file for analysis.
-    """
-    with open(os.path.join(OUTPUT_DIR, "clustering_metrics.csv"), "w") as f:
-        f.write("threshold,entropy,minority\n")
-        for idx, threshold in enumerate(test_threshold):
-            f.write(f"{threshold},{log_entropy[idx]},{log_minority[idx]}\n")
-    # Find the best threshold by the metrics
-    best_idx = np.argmax(log_entropy)
-    best_threshold = test_threshold[best_idx]
-    print(f"The best threshold is {best_threshold} with entropy {log_entropy[best_idx]} and minority {log_minority[best_idx]}.")
-    return best_threshold
-
 if __name__ == "__main__":
     # check the input arguments to select the clustering method
     if len(sys.argv) != 2:
@@ -185,6 +168,10 @@ if __name__ == "__main__":
     try:
         verified_lg_pages = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_pages.pkl"), "rb"))
     except:
+        # Initialize the tokenizer
+        from transformers import BertTokenizer
+        TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
+        
         available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
         verified_lg_pages = []
         count = 0
