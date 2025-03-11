@@ -258,11 +258,15 @@ def deduplicate_lg_page_by_url(raw_lg_page_list: list) -> list:
     print(f"Unsupported urls: {unsupported_cnt}")
     return deduplicated_lg_page_list
 
-def remove_scripts(html):
-    """使用BeautifulSoup移除所有script标签"""
+def remove_script_and_style(html):
+    """
+    Using BeautifulSoup to remove all the script style tages
+    """
     soup = bs4.BeautifulSoup(html, 'html.parser')
     for script in soup.find_all('script'):
         script.decompose()
+    for style in soup.find_all('style'):
+        style.decompose()
     return str(soup)
 
 def fetch_one_lg_page(url, session: requests.Session, retry_count=0) -> dict:
@@ -319,7 +323,7 @@ def check_availabilty_and_download(dedup_lg_page_list: list) -> list:
                 # update the success and failed count
                 processed_cnt += 1
                 if result['success']:
-                    cleaned_html = remove_scripts(result['content'])
+                    cleaned_html = remove_script_and_style(result['content'])
                     filename = result['final_url'].split('://')[1]
                     # remove the tailing slash, and only keep the first 40 characters
                     if filename.endswith('/'):

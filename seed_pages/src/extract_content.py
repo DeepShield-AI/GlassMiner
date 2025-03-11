@@ -29,8 +29,11 @@ def remove_tags_and_get_short_text(soup: BeautifulSoup) -> List[str]:
     DO NOT include the text from its children!
     Return the list of texts for given soup.
     """
-    list_of_text = []
+    list_of_text = []    
     for tag in soup.find_all():
+        # If the tag is a script or style tag, we skip it
+        if tag.name in ["script", "style"]:
+            continue
         # Get the direct text of the current label (without recursion)
         direct_texts = tag.find_all(string=True, recursive=False)
         combined = ' '.join(text.strip() for text in direct_texts).strip()

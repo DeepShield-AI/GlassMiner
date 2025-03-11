@@ -7,19 +7,36 @@ import sys
 import numpy as np
 import pandas as pd
 import pickle as pkl
+import regex as re
 from disjoint_set import DisjointSet
+from transformers import BertTokenizer
 
 # Import the customized content
 from configs import *
 
+# 加载多语言分词器
+TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
+
+def is_symbols(token):
+    if re.match(PTN_CHAR, token):
+        return True
+    return False
+
 def shingle(text, k):
-    return {text[i:i+k] for i in range(len(text) - k + 1)}
+    """
+    1. Lowercase the text and remove all the punctuations.
+    2. Tokenize the text into words.
+    3. Create the shingles by combining consecutive k words.
+    """
+    text = text.lower()
+    tokens = TOKINIZER.tokenize(text)
+    words = TOKINIZER.convert_tokens_to_string(tokens).split()
+    words = [word for word in words if not is_symbols(word)]
+    shingles = {tuple(words[i:i+k]) for i in range(len(words) - k + 1)}
+    return shingles
 
 def jaccard_similarity(shingles1, shingles2):
     intersection = shingles1.intersection(shingles2)
-    # union = shingles1.union(shingles2)
-    # return len(intersection) / len(union)
-    # backup plan, because the webpages using the same template may add more text
     # we only care about the oriningal small part of the text
     min_len = min(len(shingles1), len(shingles2))
     return len(intersection) / min_len
@@ -165,29 +182,23 @@ if __name__ == "__main__":
             print("Invalid mode. Please select 1 or 2.")
             sys.exit(1)
     # Load the seed pages
-    available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
-    verified_lg_pages = []
-    for lg_info in available_pages:
-        url = lg_info["url"]
-        filename = lg_info["filename"]
-        filepath = os.path.join(VERIFIED_DIR, filename)
-        if not os.path.exists(filepath):
-            continue
-        # Extract the content from the seed pages
-        seed_content = None
-        with open(filepath, "r") as f:
-            seed_content = f.read()
-        # Default shingle size only
-        if mode == 1:
-            verified_lg_pages.append({
-                "url": url,
-                "filename": filename,
-                "content": seed_content,
-                "shingle": {
-                    SHINGLE_SIZE: shingle(seed_content, SHINGLE_SIZE)
-            }})
-        else:
-            
+    try:
+        verified_lg_pages = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_pages.pkl"), "rb"))
+    except:
+        available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
+        verified_lg_pages = []
+        count = 0
+        for lg_info in available_pages:
+            url = lg_info["url"]
+            filename = lg_info["filename"]
+            filepath = os.path.join(VERIFIED_DIR, filename)
+            if not os.path.exists(filepath):
+                continue
+            # Extract the content from the seed pages
+            seed_content = None
+            with open(filepath, "r") as f:
+                seed_content = f.read()
+            # Default shingle size only
             verified_lg_pages.append({
                 "url": url,
                 "filename": filename,
@@ -195,6 +206,11 @@ if __name__ == "__main__":
                 "shingle": {
                     k: shingle(seed_content, k) for k in SHINGLE_LEN_LIST
             }})
+            count += 1
+            if count % 500 == 0:
+                print(f"{count} pages have been processed.")
+        os.makedirs(LOGS_DIR, exist_ok=True)
+        pkl.dump(verified_lg_pages, open(os.path.join(LOGS_DIR, "verified_lg_pages.pkl"), "wb"))
     # calculate the Jaccard similarity and cluster the seed pages    
     if mode == 1:
         try:
@@ -208,7 +224,6 @@ if __name__ == "__main__":
         with open(os.path.join(OUTPUT_DIR, "clusters.json".format(SHINGLE_SIZE, CLUSTER_THRESHOLD)), "w") as f:
             json.dump(clusters, f)
     else:
-        os.makedirs(LOGS_DIR, exist_ok=True)
         gt_clusters = load_gt_clusters(verified_lg_pages)
         # log three 2-D matrices for the metrics with shape (len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST))
         mat_gt_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
@@ -231,9 +246,6 @@ if __name__ == "__main__":
                 # save the clustering results to file
                 with open(os.path.join(LOGS_DIR, "clusters_sh={}_th={}.json".format(shingle_size, threshold)), "w") as f:
                     json.dump(clusters, f)
-            # threshold = select_best_threshold(CLUSTER_THR_LIST, log_entropy, log_minority)
-            # clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold)
-            # add the valuable metrics to the res_logs, including the entropy, minority and cluster count
         # save the metrics to 2-D tables for analysis with headers
         df_entropy = pd.DataFrame(mat_gt_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
         df_minority = pd.DataFrame(mat_res_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
