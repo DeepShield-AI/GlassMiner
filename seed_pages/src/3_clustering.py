@@ -43,33 +43,33 @@ def jaccard_similarity(shingles1, shingles2):
     # using a symmetric factor to make the similarity symmetric
     return len(intersection) / (log_len_max + len_min)
 
-def calculate_jaccard_similarity(verified_lg_pages, single_size):
+def calculate_jaccard_similarity(verified_lg_info, single_size):
     """
     Calculate the similarity between each pair of webpages.
     """
     print("Calculating the Jaccard similarity between each pair of webpages...")
     pair_count = 0
-    mat_sim = np.zeros((len(verified_lg_pages), len(verified_lg_pages)))
-    for i in range(len(verified_lg_pages)):
-        for j in range(i+1, len(verified_lg_pages)):
+    mat_sim = np.zeros((len(verified_lg_info), len(verified_lg_info)))
+    for i in range(len(verified_lg_info)):
+        for j in range(i+1, len(verified_lg_info)):
             pair_count += 1
-            mat_sim[i][j] = jaccard_similarity(verified_lg_pages[i]["shingle"][single_size], verified_lg_pages[j]["shingle"][single_size])
+            mat_sim[i][j] = jaccard_similarity(verified_lg_info[i]["shingle"][single_size], verified_lg_info[j]["shingle"][single_size])
             if pair_count % 100000 == 0:
                 print(f"{pair_count} pairs of webpages have been calculated.")
     return mat_sim
 
-def cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold):
+def cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold):
     """
     For one cluster, we add a new webpage when it is similar to over half of the cluster.
     """                
     # Testing Logic: change different threshold to see the clustering results
     print(f"Clustering webpages with threshold {threshold}...")
     # Then, using disjoint set to cluster the webpages
-    clusters = DisjointSet({i : i for i in range(len(verified_lg_pages))})
+    clusters = DisjointSet({i : i for i in range(len(verified_lg_info))})
     
     # Check the similarity between disjoint sets rather than the webpages
-    for i in range(len(verified_lg_pages)):
-        for j in range(i+1, len(verified_lg_pages)):
+    for i in range(len(verified_lg_info)):
+        for j in range(i+1, len(verified_lg_info)):
             if mat_sim[i][j] > threshold:
                 clusters.union(i, j)
     
@@ -79,7 +79,7 @@ def cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold):
     for idx, cluster in clusters.itersets(with_canonical_elements=True):
         cluster_dict[idx] = []
         for i in cluster:
-            url = verified_lg_pages[i]["url"]
+            url = verified_lg_info[i]["url"]
             url2cluster[url] = idx
             cluster_dict[idx].append(url)            
     # sort by the number of webpages in the cluster
@@ -135,9 +135,9 @@ def evaluate_the_clustering(gt_clusters, url2cluster):
         res_entropy -= cluster_entropy
     return gt_entropy, res_entropy
 
-def load_gt_clusters(verified_lg_pages):
+def load_gt_clusters(verified_lg_info):
     """
-    Load the ground truth clusters from the file, find thier indexes in the verified_lg_pages.
+    Load the ground truth clusters from the file, find thier indexes in the verified_lg_info.
     This is used for select the reasonable threshold for clustering only.
     """
     gt_clusters = {}
@@ -147,7 +147,7 @@ def load_gt_clusters(verified_lg_pages):
     for cluster_id, cluster in gt_clusters.items():
         cluster_idx = []
         for url in cluster:
-            for idx, page in enumerate(verified_lg_pages):
+            for idx, page in enumerate(verified_lg_info):
                 if page["url"] == url:
                     cluster_idx.append({
                         "url": url,
@@ -172,16 +172,16 @@ if __name__ == "__main__":
             sys.exit(1)
     # Load the seed pages
     try:
-        verified_lg_pages = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_pages.bin"), "rb"))
+        verified_lg_info = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "rb"))
     except:
         # Initialize the tokenizer
         from transformers import BertTokenizer
         TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
         
-        available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
-        verified_lg_pages = []
+        unique_lg_pages = pkl.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "rb"))
+        verified_lg_info = []
         count = 0
-        for lg_info in available_pages:
+        for lg_info in unique_lg_pages:
             url = lg_info["url"]
             filename = lg_info["filename"]
             filepath = os.path.join(VERIFIED_DIR, filename)
@@ -194,7 +194,7 @@ if __name__ == "__main__":
                 if len(seed_content) < TEXT_LEN_MIN_THRESHOLD:
                     continue
             # Default shingle size only
-            verified_lg_pages.append({
+            verified_lg_info.append({
                 "url": url,
                 "filename": filename,
                 "content": seed_content,
@@ -205,21 +205,21 @@ if __name__ == "__main__":
             if count % 500 == 0:
                 print(f"{count} pages have been processed.")
         os.makedirs(LOGS_DIR, exist_ok=True)
-        pkl.dump(verified_lg_pages, open(os.path.join(LOGS_DIR, "verified_lg_pages.bin"), "wb"))
+        pkl.dump(verified_lg_info, open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "wb"))
     # calculate the Jaccard similarity and cluster the seed pages    
     if mode == 1:
         try:
             mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "rb"))
         except:
-            mat_sim = calculate_jaccard_similarity(verified_lg_pages, SHINGLE_SIZE)
+            mat_sim = calculate_jaccard_similarity(verified_lg_info, SHINGLE_SIZE)
             pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "wb"))
-        clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, CLUSTER_THRESHOLD)
+        clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_info, mat_sim, CLUSTER_THRESHOLD)
         print(f"Total {len(clusters)} clusters are found.")
         # save the clustering results to file
         with open(os.path.join(OUTPUT_DIR, "clusters.json".format(SHINGLE_SIZE, CLUSTER_THRESHOLD)), "w") as f:
             json.dump(clusters, f)
     else:
-        gt_clusters = load_gt_clusters(verified_lg_pages)
+        gt_clusters = load_gt_clusters(verified_lg_info)
         # log three 2-D matrices for the metrics with shape (len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST))
         mat_gt_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
         mat_res_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
@@ -228,11 +228,11 @@ if __name__ == "__main__":
             try:
                 mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "rb"))
             except:
-                mat_sim = calculate_jaccard_similarity(verified_lg_pages, shingle_size)
+                mat_sim = calculate_jaccard_similarity(verified_lg_info, shingle_size)
                 pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "wb"))
             # Testing Logic: change different threshold to see the clustering results
             for idx_2, threshold in enumerate(CLUSTER_THR_LIST):
-                clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold)
+                clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold)
                 gt_entropy, res_entropy = evaluate_the_clustering(gt_clusters, url2cluster)
                 mat_gt_entropy[idx_2][idx_1] = gt_entropy
                 mat_res_entropy[idx_2][idx_1] = res_entropy

@@ -19,7 +19,7 @@ import time
 import ssl
 import requests
 import json
-import bs4
+from bs4 import BeautifulSoup
 import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,19 +27,20 @@ from functools import partial
 
 # Import the customized content
 from configs import *
+from utils import *
 
 requests.packages.urllib3.disable_warnings()
 context = ssl.create_default_context()
 context.set_ciphers('HIGH:!DH:!aNULL')
 
-def request_with_random_header(url: str) -> bs4.BeautifulSoup:
+def request_with_random_header(url: str) -> BeautifulSoup:
     """
     Send a request to the target URL with a random User-Agent
     """
     header = BASE_HEADER
     header["User-Agent"] = random.choice(USER_AGENT_LIST)
     response = requests.get(url, headers=header)
-    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    soup = parse_webpages(response.text)
     return soup
 
 # ================== Parsers for different sources ================== #
@@ -273,7 +274,7 @@ def remove_script_and_style(html):
     """
     Using BeautifulSoup to remove all the script style tages
     """
-    soup = bs4.BeautifulSoup(html, 'html.parser')
+    soup = parse_webpages(html)
     for script in soup.find_all('script'):
         script.decompose()
     for style in soup.find_all('style'):

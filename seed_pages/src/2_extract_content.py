@@ -4,12 +4,14 @@
 # Import the required libraries
 import json
 import hashlib
-import re
+import regex as re
+import pickle as pkl
 from typing import List
 from bs4 import BeautifulSoup
 
 # Import the customized content
 from configs import *
+from utils import parse_webpages
 
 def filter_out_useless_text(list_of_text: List[str]) -> List[str]:
     """
@@ -25,7 +27,7 @@ def filter_out_useless_text(list_of_text: List[str]) -> List[str]:
     
 def remove_tags_and_get_short_text(soup: BeautifulSoup) -> List[str]:
     """
-    Remove all the content within tags from the soup, keep the text only.
+    Remove all the content within tags from the soup, keep the meta content and text only.
     DO NOT include the text from its children!
     Return the list of texts for given soup.
     """
@@ -34,6 +36,10 @@ def remove_tags_and_get_short_text(soup: BeautifulSoup) -> List[str]:
         # If the tag is a script or style tag, we skip it
         if tag.name in ["script", "style"]:
             continue
+        # First, we get the content in the meta tag
+        if tag.name == "meta":
+            if tag.get("content"):
+                list_of_text.append(tag.get("content"))
         # Get the direct text of the current label (without recursion)
         direct_texts = tag.find_all(string=True, recursive=False)
         combined = ' '.join(text.strip() for text in direct_texts).strip()
@@ -78,22 +84,25 @@ def check_webpage_content_and_verify(contents: list[str], url: str) -> int:
             return 0
         return -1
         
-
 if __name__ == "__main__":
     # Load the seed pages
     available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
     print(f"Total {len(available_pages)} seed pages are loaded.")
     dict_page_contents = {}
+    dict_page_results = {}
     verified_cnt = 0
     unverified_cnt = 0
     unrelated_cnt = 0
     duplicate_cnt = 0
     total_cnt = 0
+    verified_urls = set()
     # clear the three directories
     for dir_path in [VERIFIED_DIR, UNVERIFIED_DIR, PROCS_DIR, UNRELATED_DIR]:
         os.makedirs(dir_path, exist_ok=True)
         for filename in os.listdir(dir_path):
             os.remove(os.path.join(dir_path, filename))
+            
+    # Calculate the hash value of the content to avoid duplication
     for lg_info in available_pages:
         filename = lg_info["filename"]
         url = lg_info["url"]
@@ -102,14 +111,15 @@ if __name__ == "__main__":
 
         # Extract the content from the seed pages
         seed_contents = []
-        soup = BeautifulSoup(current_page, "html.parser")
+        soup = parse_webpages(current_page)
         seed_contents = remove_tags_and_get_short_text(soup)
+        dict_page_results[url] = seed_contents
         # save to the output directory
         with open(os.path.join(PROCS_DIR, filename), "w") as f:
             f.write("\n".join(seed_contents))
 
         total_cnt += 1
-        if total_cnt % 100 == 0:
+        if total_cnt % 500 == 0:
             print(f"Processed {total_cnt} seed pages.")
         
         # hash the content to avoid duplication
@@ -119,12 +129,31 @@ if __name__ == "__main__":
         else:
             duplicate_cnt += 1
             dict_page_contents[hash_content].append(url)
-            continue
+    
+    # Now deduplicate the seed pages, only store the unique seed pages
+    # If there are more than one urls, choose the shortest one with hostname rather than IP address
+    unique_urls = set()
+    for hash_val, urls in dict_page_contents.items():
+        shortest_url = min(urls, key=lambda url: (bool(re.search(r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b', url)), len(url)))
+        unique_urls.add(shortest_url)
 
+    print("=====================================")
+    print(f"Total {len(unique_urls)} unique seed pages are found.")
+    print("=====================================")
+
+    unique_verified_pages = []
+    # Verify those unique seed pages
+    for lg_info in available_pages:
+        filename = lg_info["filename"]
+        url = lg_info["url"]
+        if url not in unique_urls:
+            continue
         # Verify the seed pages
+        seed_contents = dict_page_results[url]
         result = check_webpage_content_and_verify(seed_contents, url)
         if result == 1:
             verified_cnt += 1
+            unique_verified_pages.append(lg_info)
             os.rename(os.path.join(PROCS_DIR, filename), os.path.join(VERIFIED_DIR, filename))
         elif result == -1:
             unrelated_cnt += 1
@@ -142,9 +171,6 @@ if __name__ == "__main__":
     print("Now you need to verifiy the unverified seed pages manually.")
     print("Just move the verified seed pages to the verified folder.")
     print("=====================================")
-    
-    # dump the dict_page_contents with more than one urls to the output directory
-    with open(os.path.join(OUTPUT_DIR, "duplicated_seed_pages.json"), "w") as f:
-        for hash_val, urls in dict_page_contents.items():
-            if len(urls) > 1:
-                f.write(f"{', '.join(urls)}\n")
+        
+    with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "wb") as f:
+        pkl.dump(unique_verified_pages, f)

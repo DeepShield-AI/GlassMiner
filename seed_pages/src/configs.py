@@ -14,6 +14,7 @@ OLD_LOGS_DIR = os.path.join(OUTPUT_DIR, "old_logs")
 
 AVAI_FILE = "available_lg_page_list.json"
 FAIL_FILE = "failed_lg_page_list.json"
+UNIQ_FILE = "unique_lg_page_list.json"
 SIM_FILE = "similar_matrix_{}.bin"
 
 # ====================== Crawler Configs ====================== #
@@ -42,11 +43,12 @@ BASE_HEADER = {
 }
 SIMPLE_FILETER_WORDS = {
     "looking glass",
+    "lookingglass",
     "hyperglass",
     "traceroute",
     "ping",
-    "show route",
-    "show ip bgp",
+    "route",
+    "bgp",
 }
 SIMPLE_FILETER_URLS = {
     "looking-glass",
@@ -65,6 +67,7 @@ FILE_NAME_MAX_LENGTH = 200
 
 # ====================== Clustering Configs ====================== #
 PTN_CHAR = r'^[^\p{L}\u4e00-\u9fff\u0400-\u04FF]*$'
+PTN_IP = r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b'
 
 SHINGLE_SIZE = 3  # The size of the shingle, important for the Jaccard similarity
 IGNORE_THRESHOLD = 4 # The text with characters less than this threshold will be ignored
