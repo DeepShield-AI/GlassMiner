@@ -66,11 +66,12 @@ FILE_NAME_MAX_LENGTH = 200
 # ====================== Clustering Configs ====================== #
 PTN_CHAR = r'^[^\p{L}\u4e00-\u9fff\u0400-\u04FF]*$'
 
-SHINGLE_SIZE = 5  # The size of the shingle, important for the Jaccard similarity
+SHINGLE_SIZE = 3  # The size of the shingle, important for the Jaccard similarity
 IGNORE_THRESHOLD = 4 # The text with characters less than this threshold will be ignored
-TEXT_LEN_THRESHOLD = 100  # The threshold of the text length, remove the text if it's too long
+TEXT_LEN_MAX_THRESHOLD = 100  # The threshold of the text length, remove the text if it's too long
+TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short
 CLUSTER_THRESHOLD = 0.48  # The threshold of the Jaccard similarity for clustering
 
-SHINGLE_LEN_LIST = [1, 2, 3, 4, 5, 6]
+SHINGLE_LEN_LIST = [1, 2, 3, 4, 5, 6, 7]
 # From 0.1 to 0.6 with step 0.01
-CLUSTER_THR_LIST = np.linspace(0.15, 0.85, 71)
+CLUSTER_THR_LIST = np.linspace(0.1, 0.9, 81)

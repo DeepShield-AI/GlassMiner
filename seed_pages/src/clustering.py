@@ -35,9 +35,13 @@ def shingle(text, k):
 
 def jaccard_similarity(shingles1, shingles2):
     intersection = shingles1.intersection(shingles2)
-    # we only care about the oriningal small part of the text
-    min_len = min(len(shingles1), len(shingles2))
-    return len(intersection) / min_len if min_len > 0 else 0
+    if len(intersection) == 0:
+        return 0
+    # Must not be empty strings
+    len_min = min(len(shingles1), len(shingles2))
+    log_len_max = np.log(max(len(shingles1), len(shingles2)))
+    # using a symmetric factor to make the similarity symmetric
+    return len(intersection) / (log_len_max + len_min)
 
 def calculate_jaccard_similarity(verified_lg_pages, single_size):
     """
@@ -62,11 +66,13 @@ def cluster_webpages_by_similarity(verified_lg_pages, mat_sim, threshold):
     print(f"Clustering webpages with threshold {threshold}...")
     # Then, using disjoint set to cluster the webpages
     clusters = DisjointSet({i : i for i in range(len(verified_lg_pages))})
+    
     # Check the similarity between disjoint sets rather than the webpages
     for i in range(len(verified_lg_pages)):
         for j in range(i+1, len(verified_lg_pages)):
             if mat_sim[i][j] > threshold:
                 clusters.union(i, j)
+    
     cluster_dict = {}
     url2cluster = {}
     # Update the two dictionaries
@@ -166,7 +172,7 @@ if __name__ == "__main__":
             sys.exit(1)
     # Load the seed pages
     try:
-        verified_lg_pages = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_pages.pkl"), "rb"))
+        verified_lg_pages = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_pages.bin"), "rb"))
     except:
         # Initialize the tokenizer
         from transformers import BertTokenizer
@@ -185,6 +191,8 @@ if __name__ == "__main__":
             seed_content = None
             with open(filepath, "r") as f:
                 seed_content = f.read()
+                if len(seed_content) < TEXT_LEN_MIN_THRESHOLD:
+                    continue
             # Default shingle size only
             verified_lg_pages.append({
                 "url": url,
@@ -197,7 +205,7 @@ if __name__ == "__main__":
             if count % 500 == 0:
                 print(f"{count} pages have been processed.")
         os.makedirs(LOGS_DIR, exist_ok=True)
-        pkl.dump(verified_lg_pages, open(os.path.join(LOGS_DIR, "verified_lg_pages.pkl"), "wb"))
+        pkl.dump(verified_lg_pages, open(os.path.join(LOGS_DIR, "verified_lg_pages.bin"), "wb"))
     # calculate the Jaccard similarity and cluster the seed pages    
     if mode == 1:
         try:

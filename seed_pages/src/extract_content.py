@@ -18,7 +18,7 @@ def filter_out_useless_text(list_of_text: List[str]) -> List[str]:
     """
     new_list = []
     for text in list_of_text:
-        if len(text) > TEXT_LEN_THRESHOLD or len(text) < IGNORE_THRESHOLD:
+        if len(text) > TEXT_LEN_MAX_THRESHOLD or len(text) < IGNORE_THRESHOLD:
             continue
         new_list.append(text)
     return new_list

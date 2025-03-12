@@ -241,7 +241,7 @@ def pre_deduplicate_lg_page(raw_lg_page_list: list) -> list:
             unsupported_cnt += 1
             continue
         proto, domain = url.split("://")
-        domain = domain.rstrip("/")
+        domain = domain[:-1] if domain.endswith("/") else domain
         if domain not in preprocessed_lg_page_dict:
             preprocessed_lg_page_dict[domain] = {
                 "name": lg_page["name"],
@@ -300,7 +300,8 @@ def fetch_one_lg_page(url, session: requests.Session, retry_count=0) -> dict:
             "retries": retry_count,
             "success": False
         }
-    final_url = response.url
+    # remove tailing slash
+    final_url = response.url[-1] if response.url.endswith("/") else response.url
     return {
         "original_url": url,
         "final_url": final_url,
