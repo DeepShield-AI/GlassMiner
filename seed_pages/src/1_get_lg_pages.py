@@ -16,10 +16,9 @@
 # Import necessary libraries
 import random
 import time
-import ssl
+from urllib.parse import urljoin
 import requests
 import json
-from bs4 import BeautifulSoup
 import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,20 +27,6 @@ from functools import partial
 # Import the customized content
 from configs import *
 from utils import *
-
-requests.packages.urllib3.disable_warnings()
-context = ssl.create_default_context()
-context.set_ciphers('HIGH:!DH:!aNULL')
-
-def request_with_random_header(url: str) -> BeautifulSoup:
-    """
-    Send a request to the target URL with a random User-Agent
-    """
-    header = BASE_HEADER
-    header["User-Agent"] = random.choice(USER_AGENT_LIST)
-    response = requests.get(url, headers=header)
-    soup = parse_webpages(response.text)
-    return soup
 
 # ================== Parsers for different sources ================== #
 
@@ -225,7 +210,7 @@ lg_collection_funcs = [
 
 # ================== Other utils functions ================== #
 
-def pre_deduplicate_lg_page(raw_lg_page_list: list) -> list:
+def pre_deduplicate_by_url(raw_lg_page_list: list) -> list:
     """
     Deduplicate the LG page list by URL. We treat below URLs as the same:
     1. Two urls with only tailing slash difference: http://example.com/ and http://example.com
@@ -259,7 +244,7 @@ def pre_deduplicate_lg_page(raw_lg_page_list: list) -> list:
     print(f"Unsupported urls: {unsupported_cnt}")
     return deduplicated_lg_page_list
 
-def post_deduplicate_lg_page(available_lg_page_list: list) -> list:
+def post_deduplicate_by_url(available_lg_page_list: list) -> list:
     """
     Directly remove the duplicated LG pages by URL.
     """
@@ -270,47 +255,7 @@ def post_deduplicate_lg_page(available_lg_page_list: list) -> list:
             unique_url_dict[url] = lg_info
     return list(unique_url_dict.values())
 
-def remove_script_and_style(html):
-    """
-    Using BeautifulSoup to remove all the script style tages
-    """
-    soup = parse_webpages(html)
-    for script in soup.find_all('script'):
-        script.decompose()
-    for style in soup.find_all('style'):
-        style.decompose()
-    return str(soup)
-
-def fetch_one_lg_page(url, session: requests.Session, retry_count=0) -> dict:
-    try:
-        header = BASE_HEADER
-        header["User-Agent"] = random.choice(USER_AGENT_LIST)
-        # ignore the https insecure warning, and allow the redirect
-        response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-    except Exception as e:
-        if retry_count < MAX_RETRY:
-            if url.startswith("http:"):
-                url = "https" + url[4:]
-            else:
-                url = "http" + url[5:]
-            time.sleep(1 * retry_count)
-            return fetch_one_lg_page(url, session, retry_count + 1)
-        return {
-            "original_url": url,
-            "error": str(e),
-            "retries": retry_count,
-            "success": False
-        }
-    # remove tailing slash
-    final_url = response.url[-1] if response.url.endswith("/") else response.url
-    return {
-        "original_url": url,
-        "final_url": final_url,
-        "content": response.text,
-        "success": True
-    }
-
-def check_availabilty_and_download(dedup_lg_page_list: list) -> list:
+def check_availabilty_and_download(lg_url_list: list) -> list:
     """
     Concurrently check the availability of LG pages.
     If the target couldn't response, return False.
@@ -324,30 +269,30 @@ def check_availabilty_and_download(dedup_lg_page_list: list) -> list:
     failed_lg_page_list = []
     redirected_lg_page_list = {}
     # random shuffle the list to avoid being blocked
-    random.shuffle(dedup_lg_page_list)
+    random.shuffle(lg_url_list)
     
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         with requests.Session() as session:
-            partial_crawl = partial(fetch_one_lg_page, session=session)
-            futures = {executor.submit(partial_crawl, lg["url"]): lg for lg in dedup_lg_page_list}
+            partial_crawl = partial(fetch_one_page, session=session)
+            futures = {executor.submit(partial_crawl, lg): lg for lg in lg_url_list}
             
             for future in as_completed(futures):
                 result = future.result()
                 # update the success and failed count
                 processed_cnt += 1
                 if result['success']:
-                    cleaned_html = remove_script_and_style(result['content'])
-                    filename = result['final_url'].split('://')[1]
-                    # remove the tailing slash, and only keep the first 40 characters
-                    if filename.endswith('/'):
-                        filename = filename[:-1]
-                    filename = filename.replace('/', '_')
-                    if len(filename) > FILE_NAME_MAX_LENGTH:
-                        filename = filename[:FILE_NAME_MAX_LENGTH]
+                    soup = parse_webpages(result['content'])
+                    cleaned_soup = remove_script_and_style(soup)
+                    filename = url_to_filename(result['final_url'])
                     filepath = os.path.join(SAVE_DIR, filename)
                     redirected_lg_page_list[result["original_url"]] = result["final_url"]
                     with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(cleaned_html)
+                        f.write(str(cleaned_soup))
+                    seed_contents = remove_tags_and_get_short_text(cleaned_soup)
+                    # save to the output directory
+                    with open(os.path.join(PROCS_DIR, filename), "w") as f:
+                        f.write("\n".join(seed_contents))
+                        
                     succ_cnt += 1
                     available_lg_page_list.append({
                         "url": result['final_url'],
@@ -363,6 +308,42 @@ def check_availabilty_and_download(dedup_lg_page_list: list) -> list:
                     print("{} processed, {} success, {} failed".format(processed_cnt, succ_cnt, failed_cnt))
     return available_lg_page_list, failed_lg_page_list
 
+def get_candidate_urls(page_info):
+    """
+    Parse the HTML source file, search for tags containing "looking glass" or "lookingglass" among all text nodes,
+    then extract all hyperlinks from child tags using the parent tag of these text nodes as starting point (deduplicated).
+    
+    Returns: candidate urls to be processed further.
+    """    
+    url = page_info.get("url")
+    filename = page_info.get("filename")
+    candidate_urls = set()
+    
+    with open(os.path.join(PROCS_DIR, filename), "r") as f:
+        contents = f.read()
+    
+    if count_filter_words(contents) < 3:
+        # Find all text nodes and check if their content contains "looking glass" or "lookingglass"
+        # Note: only check text nodes, not tag attributes
+        with open(os.path.join(SAVE_DIR, filename), "r") as f:
+            html_content = f.read()
+            soup = parse_webpages(html_content)
+        
+        tags_with_lg = []
+        for text_node in soup.find_all(string=True):
+            text_str = text_node.strip().lower()
+            if "looking glass" in text_str or "lookingglass" in text_str:
+                tags_with_lg.append(text_node)
+
+        for tag in tags_with_lg:
+            parent_tag = tag.parent if tag.parent is not None else tag
+            a_tags = parent_tag.find_all("a", href=True)
+            for a in a_tags:
+                link = a['href'].rstrip("/")
+                link = urljoin(url, link)
+                candidate_urls.add(link)
+    return candidate_urls
+
 if __name__ == "__main__":
     raw_lg_page_list = []
     for func in lg_collection_funcs:
@@ -370,15 +351,33 @@ if __name__ == "__main__":
         raw_lg_page_list += tmp_lg_list
         print(f"Get {len(tmp_lg_list)} LG pages from {func.__name__}, {len(raw_lg_page_list)} LG pages are collected in total.")    
     print("Now Start deduplication...")
-    dedup_lg_page_list = pre_deduplicate_lg_page(raw_lg_page_list)    
+    dedup_lg_page_list = pre_deduplicate_by_url(raw_lg_page_list)    
     print(f"Get {len(dedup_lg_page_list)} LG pages after deduplication.")
+    dedup_lg_url_list = [lg["url"] for lg in dedup_lg_page_list]
     
     print("Now Start checking the availability of LG pages...")
-    available_lg_page_list, failed_lg_page_list = check_availabilty_and_download(dedup_lg_page_list)    
-    available_lg_page_list = post_deduplicate_lg_page(available_lg_page_list)
+    available_lg_page_list, failed_lg_page_list = check_availabilty_and_download(dedup_lg_url_list)    
+    available_lg_page_list = post_deduplicate_by_url(available_lg_page_list)
+    
+    print("Got {} available LG pages.".format(len(available_lg_page_list)))
+    print("====================")
+    
+    print("Now Start find candidate LG pages...")
+    # Check the content of each available LG page, and get candidate LG pages
+    candidate_urls = set()
+    count = 0
+    for page_info in available_lg_page_list:
+        candidates = get_candidate_urls(page_info)
+        candidate_urls.update(candidates)
+        count += 1
+        if count % 500 == 0:
+            print(f"Processed {count} LG pages, {len(candidate_urls)} candidate LG pages are found.")
+    print("Finding candidate LG pages done, {} candidate pages selected.".format(len(candidate_urls)))
+    available_candidate_list, _ = check_availabilty_and_download(list(candidate_urls))
+    print("Downloading candidate LG pages done, {} candidate LG pages are downloaded.".format(len(available_candidate_list)))
+    available_lg_page_list += available_candidate_list
+    available_lg_page_list = post_deduplicate_by_url(available_lg_page_list)
     
     with open(os.path.join(OUTPUT_DIR, AVAI_FILE), "w") as f:
         json.dump(available_lg_page_list, f, indent=4)
-    with open(os.path.join(OUTPUT_DIR, FAIL_FILE), "w") as f:
-        json.dump(failed_lg_page_list, f, indent=4)
     print(f"Get {len(available_lg_page_list)} available LG pages.")

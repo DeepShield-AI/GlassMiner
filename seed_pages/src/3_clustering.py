@@ -172,16 +172,16 @@ if __name__ == "__main__":
             sys.exit(1)
     # Load the seed pages
     try:
-        verified_lg_info = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "rb"))
+        verified_lg_info = json.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "r"))
     except:
         # Initialize the tokenizer
         from transformers import BertTokenizer
         TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
         
-        unique_lg_pages = pkl.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "rb"))
+        unique_verified_pages = pkl.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "rb"))
         verified_lg_info = []
         count = 0
-        for lg_info in unique_lg_pages:
+        for lg_info in unique_verified_pages:
             url = lg_info["url"]
             filename = lg_info["filename"]
             filepath = os.path.join(VERIFIED_DIR, filename)

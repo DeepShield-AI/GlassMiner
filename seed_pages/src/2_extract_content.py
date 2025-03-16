@@ -1,176 +1,121 @@
-# Post-processing of the seed pages to cluster them based on the similarity of the content.
-# We just check if the seed pages have the keyword "Looking Glass" in the title or body.
-
-# Import the required libraries
 import json
 import hashlib
+import sys
 import regex as re
-import pickle as pkl
-from typing import List
-from bs4 import BeautifulSoup
-
-# Import the customized content
+import os
 from configs import *
-from utils import parse_webpages
+from utils import *
 
-def filter_out_useless_text(list_of_text: List[str]) -> List[str]:
-    """
-    Filter out the text whose length is longer than the threshold.
-    Remove the text with less than 
-    """
-    new_list = []
-    for text in list_of_text:
-        if len(text) > TEXT_LEN_MAX_THRESHOLD or len(text) < IGNORE_THRESHOLD:
-            continue
-        new_list.append(text)
-    return new_list
-    
-def remove_tags_and_get_short_text(soup: BeautifulSoup) -> List[str]:
-    """
-    Remove all the content within tags from the soup, keep the meta content and text only.
-    DO NOT include the text from its children!
-    Return the list of texts for given soup.
-    """
-    list_of_text = []    
-    for tag in soup.find_all():
-        # If the tag is a script or style tag, we skip it
-        if tag.name in ["script", "style"]:
-            continue
-        # First, we get the content in the meta tag
-        if tag.name == "meta":
-            if tag.get("content"):
-                list_of_text.append(tag.get("content"))
-        # Get the direct text of the current label (without recursion)
-        direct_texts = tag.find_all(string=True, recursive=False)
-        combined = ' '.join(text.strip() for text in direct_texts).strip()
-        if combined:
-            list_of_text.append(combined)
-        # if tag is an input tag, we can extract the "value" attr
-        if tag.name == "input" and tag.get("value"):
-            list_of_text.append(tag.get("value"))
-    list_of_text = filter_out_useless_text(list_of_text)
-    return list_of_text
+def load_pages(filename):
+    """Load and return seed pages from JSON file."""
+    with open(os.path.join(OUTPUT_DIR, filename), "r") as f:
+        pages = json.load(f)
+    print(f"Total {len(pages)} seed pages loaded.")
+    return pages
 
-def check_webpage_content_and_verify(contents: list[str], url: str) -> int:
-    """
-    Check if the webpage is a Looking Glass page by checking the title and body.
-    Return 1 if the webpage is a Looking Glass page, -1 if not， 0 for unknown.
-    """
-    # check the content to verify if it's a looking glass page
-    is_verified = False
-    for text in contents:
-        for word in SIMPLE_FILETER_WORDS:
-            if word in text.lower():
-                is_verified = True
-                break
-    if is_verified:
-        return 1
-    else:
-        # check the url if there're "lg" or "looking glass" in the url
-        # and the content didn't contain "not found" or "404"
-        url = url.lower()
-        # split the url by non-alphabet characters except for "-"
-        url_parts = re.split(r"[^a-zA-Z-]+", url)
-        is_related = False
-        for part in url_parts:
-            if part in SIMPLE_FILETER_URLS:
-                is_related = True
-                break
-        if is_related:
-            for text in contents:
-                for word in SIMPLE_STOP_WORDS:
-                    if word in text.lower():
-                        return -1
-            return 0
-        return -1
-        
-if __name__ == "__main__":
-    # Load the seed pages
-    available_pages = json.load(open(os.path.join(OUTPUT_DIR, AVAI_FILE), "r"))
-    print(f"Total {len(available_pages)} seed pages are loaded.")
-    dict_page_contents = {}
-    dict_page_results = {}
-    verified_cnt = 0
-    unverified_cnt = 0
-    unrelated_cnt = 0
-    duplicate_cnt = 0
-    total_cnt = 0
-    verified_urls = set()
-    # clear the three directories
-    for dir_path in [VERIFIED_DIR, UNVERIFIED_DIR, PROCS_DIR, UNRELATED_DIR]:
+def clear_directories():
+    """Clear contents of verified, unverified, and unrelated directories."""
+    for dir_path in [VERIFIED_DIR, UNVERIFIED_DIR, UNRELATED_DIR]:
         os.makedirs(dir_path, exist_ok=True)
         for filename in os.listdir(dir_path):
             os.remove(os.path.join(dir_path, filename))
-            
-    # Calculate the hash value of the content to avoid duplication
-    for lg_info in available_pages:
-        filename = lg_info["filename"]
-        url = lg_info["url"]
-        with open(os.path.join(SAVE_DIR, filename), "r") as f:
-            current_page = f.read()
 
-        # Extract the content from the seed pages
-        seed_contents = []
-        soup = parse_webpages(current_page)
-        seed_contents = remove_tags_and_get_short_text(soup)
-        dict_page_results[url] = seed_contents
-        # save to the output directory
-        with open(os.path.join(PROCS_DIR, filename), "w") as f:
-            f.write("\n".join(seed_contents))
-
-        total_cnt += 1
-        if total_cnt % 500 == 0:
-            print(f"Processed {total_cnt} seed pages.")
-        
-        # hash the content to avoid duplication
-        hash_content = hashlib.md5("".join(seed_contents).encode()).hexdigest()
-        if hash_content not in dict_page_contents.keys():
-            dict_page_contents[hash_content] = [url] 
-        else:
-            duplicate_cnt += 1
-            dict_page_contents[hash_content].append(url)
+def get_unique_urls(pages):
+    """Calculate hash values and return unique URLs."""
+    hash_to_urls = {}
+    page_contents = {}
     
-    # Now deduplicate the seed pages, only store the unique seed pages
-    # If there are more than one urls, choose the shortest one with hostname rather than IP address
-    unique_urls = set()
-    for hash_val, urls in dict_page_contents.items():
-        shortest_url = min(urls, key=lambda url: (bool(re.search(r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b', url)), len(url)))
-        unique_urls.add(shortest_url)
-
-    print("=====================================")
-    print(f"Total {len(unique_urls)} unique seed pages are found.")
-    print("=====================================")
-
-    unique_verified_pages = []
-    # Verify those unique seed pages
-    for lg_info in available_pages:
-        filename = lg_info["filename"]
-        url = lg_info["url"]
-        if url not in unique_urls:
-            continue
-        # Verify the seed pages
-        seed_contents = dict_page_results[url]
-        result = check_webpage_content_and_verify(seed_contents, url)
-        if result == 1:
-            verified_cnt += 1
-            unique_verified_pages.append(lg_info)
-            os.rename(os.path.join(PROCS_DIR, filename), os.path.join(VERIFIED_DIR, filename))
-        elif result == -1:
-            unrelated_cnt += 1
-            os.rename(os.path.join(PROCS_DIR, filename), os.path.join(UNRELATED_DIR, filename))
-        elif result == 0:
-            unverified_cnt += 1
-            os.rename(os.path.join(PROCS_DIR, filename), os.path.join(UNVERIFIED_DIR, filename))
-
-    print("=====================================")
-    print(f"Total {total_cnt} seed pages are processed.")
-    print(f"{verified_cnt} unique seed pages are verified.")
-    print(f"{unverified_cnt} unique seed pages are unverified.")
-    print(f"{unrelated_cnt} unique seed pages are unrelated.")
-    print(f"{duplicate_cnt} seed pages are duplicated.")
-    print("Now you need to verifiy the unverified seed pages manually.")
-    print("Just move the verified seed pages to the verified folder.")
-    print("=====================================")
+    # Calculate hash for each page
+    for page in pages:
+        with open(os.path.join(PROCS_DIR, page["filename"]), "r") as f:
+            content = f.read()
+        page_contents[page["url"]] = content
         
-    with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "wb") as f:
-        pkl.dump(unique_verified_pages, f)
+        hash_val = hashlib.md5(content.encode()).hexdigest()
+        if hash_val not in hash_to_urls:
+            hash_to_urls[hash_val] = []
+        hash_to_urls[hash_val].append(page["url"])
+    
+    # Select shortest non-IP URL for each hash
+    unique_urls = {min(urls, key=lambda url: (bool(re.search(r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b', url)), len(url)))
+                  for urls in hash_to_urls.values()}
+    
+    return unique_urls, page_contents
+
+def process_pages(pages, unique_urls, page_contents):
+    """Process pages and sort them into verified/unverified/unrelated."""
+    verified_pages = []
+    stats = {"verified": 0, "unverified": 0, "unrelated": 0}
+    
+    for page in pages:
+        if page["url"] not in unique_urls:
+            continue
+            
+        content = page_contents[page["url"]]
+        result = count_filter_words(content)
+        filename = page["filename"]
+        
+        if result > 2:
+            stats["verified"] += 1
+            verified_pages.append(page)
+            dest_dir = VERIFIED_DIR
+        elif result == 2:
+            stats["unverified"] += 1
+            dest_dir = UNVERIFIED_DIR
+        else:
+            stats["unrelated"] += 1
+            dest_dir = UNRELATED_DIR
+            
+        os.rename(os.path.join(PROCS_DIR, filename), 
+                 os.path.join(dest_dir, filename))
+    
+    return verified_pages, stats
+
+def process_manual_verification(verified_pages, available_pages):
+    """Process manually verified pages from unverified directory."""
+    filename_to_info = {info["filename"]: info for info in available_pages}
+    newly_verified = []
+    
+    for filename in os.listdir(UNVERIFIED_DIR):
+        if filename in filename_to_info:
+            newly_verified.append(filename_to_info[filename])
+            os.rename(os.path.join(UNVERIFIED_DIR, filename),
+                     os.path.join(VERIFIED_DIR, filename))
+    
+    verified_pages.extend(newly_verified)
+    return verified_pages, len(newly_verified)
+
+def save_results(verified_pages):
+    """Save verified pages to JSON file."""
+    with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "w") as f:
+        json.dump(verified_pages, f)
+
+def main():
+    mode = 2 if len(sys.argv) == 2 and sys.argv[1] == "2" else 1
+    available_pages = load_pages(AVAI_FILE)
+    
+    if mode == 1:
+        clear_directories()
+        unique_urls, page_contents = get_unique_urls(available_pages)
+        verified_pages, stats = process_pages(available_pages, unique_urls, page_contents)
+        
+        print("\n=== Processing Results ===")
+        print(f"Verified pages: {stats['verified']}")
+        print(f"Unverified pages: {stats['unverified']}")
+        print(f"Unrelated pages: {stats['unrelated']}")
+        print(f"Unique pages: {len(unique_urls)}")
+        print(f"Duplicates: {len(available_pages) - len(unique_urls)}")
+        print("\nPlease verify unverified pages manually and run with mode=2")
+        
+        save_results(verified_pages)
+        
+    elif mode == 2:
+        verified_pages = load_pages(UNIQ_FILE)
+        verified_pages, newly_verified_count = process_manual_verification(verified_pages, available_pages)
+        save_results(verified_pages)
+        
+        print(f"Added {newly_verified_count} manually verified pages")
+        print(f"Total verified pages: {len(verified_pages)}")
+
+if __name__ == "__main__":
+    main()
