@@ -27,8 +27,18 @@ def get_unique_urls(pages):
     
     # Calculate hash for each page
     for page in pages:
-        with open(os.path.join(PROCS_DIR, page["filename"]), "r") as f:
-            content = f.read()
+        try:
+            with open(os.path.join(PROCS_DIR, page["filename"]), "r") as f:
+                content = f.read()
+        except:
+            with open(os.path.join(SAVE_DIR, page["filename"]), "r") as f:
+                html_text = f.read()
+            soup = parse_webpages(html_text)
+            cleaned_soup = remove_script_and_style(soup)
+            content = remove_tags_and_get_short_text(cleaned_soup)
+            content = "\n".join(content)
+            with open(os.path.join(PROCS_DIR, page["filename"]), "w") as f:
+                f.write(content)
         page_contents[page["url"]] = content
         
         hash_val = hashlib.md5(content.encode()).hexdigest()
@@ -91,7 +101,14 @@ def save_results(verified_pages):
         json.dump(verified_pages, f)
 
 def main():
-    mode = 2 if len(sys.argv) == 2 and sys.argv[1] == "2" else 1
+    if len(sys.argv) != 2:
+        print("Usage: python ./2_extract_content.py <mode>")
+        print("Please select the mode for extraction.")
+        print("1-Initial running to simply classify the pages.")
+        print("2-Final running to merge pages after manual check.")
+        exit(1)
+    else:
+       mode = int(sys.argv[1])
     available_pages = load_pages(AVAI_FILE)
     
     if mode == 1:
@@ -99,14 +116,13 @@ def main():
         unique_urls, page_contents = get_unique_urls(available_pages)
         verified_pages, stats = process_pages(available_pages, unique_urls, page_contents)
         
-        print("\n=== Processing Results ===")
+        print("\n======== Processing Results ========")
         print(f"Verified pages: {stats['verified']}")
         print(f"Unverified pages: {stats['unverified']}")
         print(f"Unrelated pages: {stats['unrelated']}")
         print(f"Unique pages: {len(unique_urls)}")
         print(f"Duplicates: {len(available_pages) - len(unique_urls)}")
         print("\nPlease verify unverified pages manually and run with mode=2")
-        
         save_results(verified_pages)
         
     elif mode == 2:
@@ -116,6 +132,5 @@ def main():
         
         print(f"Added {newly_verified_count} manually verified pages")
         print(f"Total verified pages: {len(verified_pages)}")
-
 if __name__ == "__main__":
     main()

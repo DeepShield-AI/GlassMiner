@@ -139,13 +139,13 @@ def remove_tags_and_get_short_text(soup: BeautifulSoup):
             continue
         # First, we get the content in the meta tag
         if tag.name == "meta":
-            if tag.get("content"):
+            if tag.get("content") and tag.get("name"):
                 list_of_text.append(tag.get("content"))
         # Get the direct text of the current label (without recursion)
         direct_texts = tag.find_all(string=True, recursive=False)
-        combined = ' '.join(text.strip() for text in direct_texts).strip()
-        if combined:
-            list_of_text.append(combined)
+        
+        text_list = [text.strip() for text in direct_texts]
+        list_of_text.extend(text_list)
         # if tag is an input tag, we can extract the "value" attr
         if tag.name == "input" and tag.get("value"):
             list_of_text.append(tag.get("value"))
