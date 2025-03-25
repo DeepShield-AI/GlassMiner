@@ -4,6 +4,9 @@ import warnings
 import random
 import requests
 import ssl
+from math import log2
+from difflib import SequenceMatcher
+from niteru.html_parser import parse_html
 
 from configs import *
 
@@ -151,3 +154,41 @@ def remove_tags_and_get_short_text(soup: BeautifulSoup):
             list_of_text.append(tag.get("value"))
     list_of_text = filter_out_useless_text(list_of_text)
     return list_of_text
+
+# For structure similarity computation.
+class StructuralComparator(SequenceMatcher):
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not hasattr(self, '_initialized'):
+            super().__init__()
+            self._initialized = True
+    
+    def ratio(self) -> float:
+        matches = sum(triple[-1] for triple in self.get_matching_blocks())
+        min_len = min(len(self.a), len(self.b))
+        log_max_len = log2(max(len(self.a), len(self.b)))
+        return 1.0 * matches / (min_len + log_max_len)
+
+def sequence_similarity(html_1: str, html_2: str):
+    comparator = StructuralComparator()
+    parsed1 = parse_html(html_1)
+    parsed2 = parse_html(html_2)
+    comparator.set_seq1(parsed1.tags)
+    comparator.set_seq2(parsed2.tags)
+    return comparator.ratio()
+
+def jaccard_similarity(shingles1, shingles2):
+    intersection = shingles1.intersection(shingles2)
+    if len(intersection) == 0:
+        return 0
+    # Must not be empty strings
+    len_min = min(len(shingles1), len(shingles2))
+    log_len_max = np.log(max(len(shingles1), len(shingles2)))
+    # using a symmetric factor to make the similarity symmetric
+    return len(intersection) / (log_len_max + len_min)

@@ -74,8 +74,9 @@ SHINGLE_SIZE = 4  # The size of the shingle, important for the Jaccard similarit
 IGNORE_THRESHOLD = 4 # The text with characters less than this threshold will be ignored
 TEXT_LEN_MAX_THRESHOLD = 50  # The threshold of the text length, remove the text if it's too long
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short
-CLUSTER_THRESHOLD = 0.63  # The threshold of the Jaccard similarity for clustering
+CORPUS_THRESHOLD = 0.4  # The threshold of the Jaccard similarity for clustering
+STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
 
 SHINGLE_LEN_LIST = [1, 2, 3, 4, 5, 6, 7]
 # From 0.1 to 0.6 with step 0.01
-CLUSTER_THR_LIST = np.linspace(0.1, 0.9, 81)
+CLUSTER_THR_LIST = np.linspace(0.2, 0.95, 76)

@@ -12,7 +12,7 @@ from disjoint_set import DisjointSet
 
 # Import the customized content
 from configs import *
-
+from utils import *
 TOKINIZER = None
 
 def is_symbols(token):
@@ -43,11 +43,11 @@ def jaccard_similarity(shingles1, shingles2):
     # using a symmetric factor to make the similarity symmetric
     return len(intersection) / (log_len_max + len_min)
 
-def calculate_jaccard_similarity(verified_lg_info, single_size):
+def calculate_corpus_similarity(verified_lg_info, single_size):
     """
     Calculate the similarity between each pair of webpages.
     """
-    print("Calculating the Jaccard similarity between each pair of webpages...")
+    print("Calculating the corpus similarity between each pair of webpages...")
     pair_count = 0
     mat_sim = np.zeros((len(verified_lg_info), len(verified_lg_info)))
     for i in range(len(verified_lg_info)):
@@ -58,20 +58,47 @@ def calculate_jaccard_similarity(verified_lg_info, single_size):
                 print(f"{pair_count} pairs of webpages have been calculated.")
     return mat_sim
 
-def cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold):
+def calculate_structure_similarity(verified_lg_info):
     """
-    For one cluster, we add a new webpage when it is similar to over half of the cluster.
-    """                
-    # Testing Logic: change different threshold to see the clustering results
-    print(f"Clustering webpages with threshold {threshold}...")
-    # Then, using disjoint set to cluster the webpages
-    clusters = DisjointSet({i : i for i in range(len(verified_lg_info))})
-    
-    # Check the similarity between disjoint sets rather than the webpages
+    Calculate the similarity between each pair of webpages.
+    """
+    print("Calculating the structure similarity between each pair of webpages...")
+    pair_count = 0
+    mat_sim = np.zeros((len(verified_lg_info), len(verified_lg_info)))
+    html_1 = None
+    html_2 = None
     for i in range(len(verified_lg_info)):
+        with open(os.path.join(SAVE_DIR, verified_lg_info[i]["filename"])) as f:
+            html_1 = f.read()
         for j in range(i+1, len(verified_lg_info)):
-            if mat_sim[i][j] > threshold:
-                clusters.union(i, j)
+            with open(os.path.join(SAVE_DIR, verified_lg_info[j]["filename"])) as f:
+                html_2 = f.read()
+            pair_count += 1
+            mat_sim[i][j] = sequence_similarity(html_1, html_2)
+            if pair_count % 10000 == 0:
+                print(f"{pair_count} pairs of webpages have been calculated.")
+    return mat_sim
+
+def cluster_webpages_by_similarity(indices, mat_sim, threshold):
+    """
+    For each webpage i, find its most similar webpage j (j > i) that has similarity > threshold,
+    and merge them into the same cluster.
+    """                
+    print(f"Clustering webpages with threshold {threshold}...")
+    clusters = DisjointSet({i : i for i in range(len(indices))})
+    
+    # For each webpage i, find its most similar webpage j
+    for i in range(len(indices)):
+        max_sim = 0
+        max_j = -1
+        # Find the most similar webpage j among remaining webpages
+        for j in range(i+1, len(indices)):
+            if mat_sim[i][j] > max_sim:
+                max_sim = mat_sim[i][j]
+                max_j = j
+        # If found a similar enough webpage, merge them
+        if max_sim > threshold and max_j != -1:
+            clusters.union(i, max_j)
     
     cluster_dict = {}
     url2cluster = {}
@@ -79,106 +106,23 @@ def cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold):
     for idx, cluster in clusters.itersets(with_canonical_elements=True):
         cluster_dict[idx] = []
         for i in cluster:
-            url = verified_lg_info[i]["url"]
+            url = verified_lg_info[indices[i]]["url"]
             url2cluster[url] = idx
             cluster_dict[idx].append(url)            
     # sort by the number of webpages in the cluster
     cluster_dict = {k: v for k, v in sorted(cluster_dict.items(), key=lambda item: len(item[1]), reverse=True)}
     return cluster_dict, url2cluster
 
-def evaluate_the_clustering(gt_clusters, url2cluster):
-    """
-    Evaluate the clustering results by comparing with the ground truth clusters.
-    We check the entropy of the cluster results of gt_clusters.
-    For each cluster in gt_clusters, we calculate the -sum(p_i*log(p_i)) for type i after clustering. 
-    """
-    gt_cluster_res = {}
-    res_cluster_to_gt = {}
-    for gt_id, cluster in gt_clusters.items():
-        gt_cluster_res[gt_id] = []
-        for info in cluster:
-            url = info['url']
-            res = url2cluster[url]
-            if res not in res_cluster_to_gt:
-                res_cluster_to_gt[res] = []
-            res_cluster_to_gt[res].append(gt_id)
-            gt_cluster_res[gt_id].append(res)
-
-    # Metric 1: calculate the entropy of the clustering results
-    gt_entropy = 0
-    for gt_id, cluster in gt_cluster_res.items():
-        if len(cluster) == 0:
-            continue
-        cluster_size = len(cluster)
-        cluster_type = {}
-        for res_id in cluster:
-            if res_id not in cluster_type:
-                cluster_type[res_id] = 0
-            cluster_type[res_id] += 1
-        cluster_entropy = 0
-        for res_id, count in cluster_type.items():
-            cluster_entropy += count / cluster_size * np.log(count / cluster_size)
-        gt_entropy -= cluster_entropy
-    
-    # Metric 2: calculate the number of the clustered results
-    res_entropy = 0
-    for res_id, gt_ids in res_cluster_to_gt.items():
-        cluster_size = len(gt_ids)
-        cluster_type = {}
-        for gt_id in gt_ids:
-            if gt_id not in cluster_type:
-                cluster_type[gt_id] = 0
-            cluster_type[gt_id] += 1
-        cluster_entropy = 0
-        for gt_id, count in cluster_type.items():
-            cluster_entropy += count / cluster_size * np.log(count / cluster_size)
-        res_entropy -= cluster_entropy
-    return gt_entropy, res_entropy
-
-def load_gt_clusters(verified_lg_info):
-    """
-    Load the ground truth clusters from the file, find thier indexes in the verified_lg_info.
-    This is used for select the reasonable threshold for clustering only.
-    """
-    gt_clusters = {}
-    with open(os.path.join(DATA_DIR, "ground_truth_clusters.json"), "r") as f:
-        gt_clusters = json.load(f)
-    gt_clusters_with_idx = {}
-    for cluster_id, cluster in gt_clusters.items():
-        cluster_idx = []
-        for url in cluster:
-            for idx, page in enumerate(verified_lg_info):
-                if page["url"] == url:
-                    cluster_idx.append({
-                        "url": url,
-                        "idx": idx
-                    })
-                    break
-        gt_clusters_with_idx[cluster_id] = cluster_idx
-    return gt_clusters_with_idx
-
 if __name__ == "__main__":
-    # check the input arguments to select the clustering method
-    if len(sys.argv) != 2:
-        print("Usage: python clustering.py <mode>")
-        print("Mode: 1 - clustering based on current configuration.")
-        print("Mode: 2 - find the best threshold for clustering by validating the ground truth clusters.")
-        print("Now using default mode 1.")
-        mode = 1
-    else:
-        mode = int(sys.argv[1])
-        if mode not in [1, 2]:
-            print("Invalid mode. Please select 1 or 2.")
-            sys.exit(1)
-    # Load the seed pages
+    # Load the seed pages, and their shingles
     try:
-        verified_lg_info = json.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "r"))
+        verified_lg_info = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "rb"))
     except:
         # Initialize the tokenizer
         from transformers import BertTokenizer
         TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
         
-        unique_verified_pages = pkl.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "rb"))
+        unique_verified_pages = json.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "r"))
         verified_lg_info = []
         count = 0
         for lg_info in unique_verified_pages:
@@ -206,46 +150,80 @@ if __name__ == "__main__":
                 print(f"{count} pages have been processed.")
         os.makedirs(LOGS_DIR, exist_ok=True)
         pkl.dump(verified_lg_info, open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "wb"))
-    # calculate the Jaccard similarity and cluster the seed pages    
-    if mode == 1:
-        try:
-            mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "rb"))
-        except:
-            mat_sim = calculate_jaccard_similarity(verified_lg_info, SHINGLE_SIZE)
-            pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "wb"))
-        clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_info, mat_sim, CLUSTER_THRESHOLD)
-        print(f"Total {len(clusters)} clusters are found.")
-        # save the clustering results to file
-        with open(os.path.join(OUTPUT_DIR, "clusters.json".format(SHINGLE_SIZE, CLUSTER_THRESHOLD)), "w") as f:
-            json.dump(clusters, f)
-    else:
-        gt_clusters = load_gt_clusters(verified_lg_info)
-        # log three 2-D matrices for the metrics with shape (len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST))
-        mat_gt_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
-        mat_res_entropy = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.float32)
-        mat_clst_count = np.zeros((len(CLUSTER_THR_LIST), len(SHINGLE_LEN_LIST)), dtype=np.int32)
-        for idx_1, shingle_size in enumerate(SHINGLE_LEN_LIST):
-            try:
-                mat_sim = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "rb"))
-            except:
-                mat_sim = calculate_jaccard_similarity(verified_lg_info, shingle_size)
-                pkl.dump(mat_sim, open(os.path.join(LOGS_DIR, SIM_FILE.format(shingle_size)), "wb"))
-            # Testing Logic: change different threshold to see the clustering results
-            for idx_2, threshold in enumerate(CLUSTER_THR_LIST):
-                clusters, url2cluster = cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold)
-                gt_entropy, res_entropy = evaluate_the_clustering(gt_clusters, url2cluster)
-                mat_gt_entropy[idx_2][idx_1] = gt_entropy
-                mat_res_entropy[idx_2][idx_1] = res_entropy
-                mat_clst_count[idx_2][idx_1] = len(clusters)
-                print(f"Total {len(clusters)} clusters are found.")
-                # save the clustering results to file
-                with open(os.path.join(LOGS_DIR, "clusters_sh={}_th={}.json".format(shingle_size, threshold)), "w") as f:
-                    json.dump(clusters, f)
-        # save the metrics to 2-D tables for analysis with headers
-        df_entropy = pd.DataFrame(mat_gt_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
-        df_minority = pd.DataFrame(mat_res_entropy, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
-        df_clst_count = pd.DataFrame(mat_clst_count, columns=SHINGLE_LEN_LIST, index=CLUSTER_THR_LIST)
-        with pd.ExcelWriter(os.path.join(OUTPUT_DIR, "clustering_metrics.xlsx")) as writer:
-            df_entropy.to_excel(writer, sheet_name="gt_entropy")
-            df_minority.to_excel(writer, sheet_name="res_entropy")
-            df_clst_count.to_excel(writer, sheet_name="cluster_count")
+
+    print("Starting two-stage clustering.")
+    print("\n=== Stage 1: Structure similarity ===")
+    try:
+        mat_sim_structure = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(0)), "rb"))
+    except:
+        mat_sim_structure = calculate_structure_similarity(verified_lg_info)
+        pkl.dump(mat_sim_structure, open(os.path.join(LOGS_DIR, SIM_FILE.format(0)), "wb"))
+    
+    clusters_1st, url2cluster_1st = cluster_webpages_by_similarity(
+        [i for i in range(len(verified_lg_info))], mat_sim_structure, threshold=STRUC_THRESHOLD
+    )
+    
+    # Sort clusters by size
+    sorted_clusters_1st = {}
+    cluster_sizes = [(cluster_id, len(urls)) for cluster_id, urls in clusters_1st.items()]
+    cluster_sizes.sort(key=lambda x: x[1], reverse=True)
+    for new_id, (old_id, _) in enumerate(cluster_sizes):
+        sorted_clusters_1st[f"structure_cluster_{new_id}"] = clusters_1st[old_id]
+    # Save structure clustering results
+    with open(os.path.join(OUTPUT_DIR, "structure_clusters.json"), "w") as f:
+        json.dump(sorted_clusters_1st, f, indent=2)
+    print(f"{len(clusters_1st)} clusters found in stage 1.")
+
+
+
+
+    print("\n=== Stage 2: Corpus similarity ===")
+    final_clusters = {}
+    try:
+        mat_sim_corpus = pkl.load(open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "rb"))
+    except:
+        mat_sim_corpus = calculate_corpus_similarity(verified_lg_info, SHINGLE_SIZE)
+        pkl.dump(mat_sim_corpus, open(os.path.join(LOGS_DIR, SIM_FILE.format(SHINGLE_SIZE)), "wb"))
+    
+    for cluster_id, urls in clusters_1st.items():
+        if len(urls) <= 10:  # skip small clusters
+            final_clusters[cluster_id] = urls
+            continue
+
+        indices = []
+        for url in urls:
+            for idx, info in enumerate(verified_lg_info):
+                if info["url"] == url:
+                    indices.append(idx)
+                    break
+        
+        # Extract submatrix for corpus clustering
+        sub_mat = np.zeros((len(indices), len(indices)))
+        for i in range(len(indices)):
+            for j in range(i+1, len(indices)):
+                orig_i, orig_j = indices[i], indices[j]
+                if orig_i < orig_j:
+                    sub_mat[i][j] = mat_sim_corpus[orig_i][orig_j] 
+                else:
+                    sub_mat[i][j] = mat_sim_corpus[orig_j][orig_i]
+        
+        sub_clusters_2nd, _ = cluster_webpages_by_similarity(
+            indices, sub_mat, threshold=CORPUS_THRESHOLD
+        )
+        
+        # Record final clustering results for this cluster
+        for idx, cluster in sub_clusters_2nd.items():
+            new_cluster_id = f"{cluster_id}_{idx}"
+            final_clusters[new_cluster_id] = cluster
+    
+    print(f"{len(final_clusters)} clusters found in total.")
+    
+    # Sort clusters by size
+    sorted_clusters = {}
+    cluster_sizes = [(cluster_id, len(urls)) for cluster_id, urls in final_clusters.items()]
+    cluster_sizes.sort(key=lambda x: x[1], reverse=True)
+    for new_id, (old_id, _) in enumerate(cluster_sizes):
+        sorted_clusters[f"cluster_{new_id}"] = final_clusters[old_id]
+    # Save sorted clustering results
+    with open(os.path.join(OUTPUT_DIR, "hybrid_clusters.json"), "w") as f:
+        json.dump(sorted_clusters, f, indent=2)
