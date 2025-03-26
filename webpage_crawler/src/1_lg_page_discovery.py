@@ -186,9 +186,13 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
         tmp_urls = search_for_one_keyword(browser, key)
         # write the terms to log file
         log_term_file.write(terms[0] + ' ' + terms[1] + '\n')
+        # flush the buffer
+        log_term_file.flush()
         # write the urls to file
         for url in tmp_urls:
             log_url_file.write(url + '\n')
+        # flush the buffer
+        log_url_file.flush()
         candidate_urls.update(tmp_urls)
         count += 1
         if count % 10 == 0:
