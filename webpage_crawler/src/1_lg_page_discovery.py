@@ -176,7 +176,7 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
     
     # Log the processed terms
     log_term_file = open(os.path.join(LOGS_DIR, 'log_terms_' + str(thread_index) + '.txt'), 'a')
-    log_url_file = open('found_urls_' + str(thread_index) + '.txt', 'w')
+    log_url_file = open(os.path.join(LOGS_DIR, 'log_urls_' + str(thread_index) + '.txt'), 'a')
     
     # 对于每个URL进行搜索
     for terms in list_terms:
