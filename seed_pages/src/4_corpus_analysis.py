@@ -93,7 +93,8 @@ def analyse_clustered_keywords(clustered_corpus):
         # Compute the weighted TF-IDF value
         total_tfidf = np.sum(list(dict_total_tfidf.values()))
         dict_total_tfidf = {k: v / total_tfidf for k, v in dict_total_tfidf.items()}
-        # only choose top 15 keywords and their TF-IDF value.
+        # Remove the words with value lower than CLUSTER_WEIGHT_THRESHOLD
+        dict_total_tfidf = {k: v for k, v in dict_total_tfidf.items() if v > CLUSTER_WEIGHT_THRESHOLD}
         dict_cluster_keyword_values[cluster_id] = {k: v for k, v in sorted(dict_total_tfidf.items(), key=lambda item: item[1], reverse=True)[:15]}
         clustered_count += 1
         if clustered_count % 50 == 0:
@@ -109,6 +110,8 @@ if __name__ == '__main__':
     # Calculate the weighted of the TF-IDF value, rather than the absolute value
     total_tfidf = np.sum(list(dict_total_tfidf.values()))
     dict_total_tfidf = {k: v / total_tfidf for k, v in dict_total_tfidf.items()}
+    # Remove the words with value lower than GENERAL_KEYWORD_THRESHOLD
+    dict_total_tfidf = {k: v for k, v in dict_total_tfidf.items() if v > GENERAL_WEIGHT_THRESHOLD}
     # Sort the words by the weighted TF-IDF value, and get the dictionary
     general_keywords = set(dict_total_tfidf.keys())
     dict_general_keyword_values = {k: v for k, v in sorted(dict_total_tfidf.items(), key=lambda item: item[1], reverse=True)}

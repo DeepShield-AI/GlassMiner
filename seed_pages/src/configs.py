@@ -75,6 +75,8 @@ TEXT_LEN_MAX_THRESHOLD = 50  # The threshold of the text length, remove the text
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short
 CORPUS_THRESHOLD = 0.4  # The threshold of the Jaccard similarity for clustering
 STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
+GENERAL_WEIGHT_THRESHOLD = 1e-3  # The threshold of the weight for the useful words
+CLUSTER_WEIGHT_THRESHOLD = 1e-2
 
 SHINGLE_LEN_LIST = [1, 2, 3, 4, 5, 6, 7]
 # From 0.1 to 0.6 with step 0.01
