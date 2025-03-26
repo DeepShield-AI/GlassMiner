@@ -178,7 +178,8 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
     log_term_file = open(os.path.join(LOGS_DIR, 'log_terms_' + str(thread_index) + '.txt'), 'a')
     log_url_file = open(os.path.join(LOGS_DIR, 'log_urls_' + str(thread_index) + '.txt'), 'a')
     
-    # 对于每个URL进行搜索
+    # Search for the urls
+    count = 0
     for terms in list_terms:
         # Search term: key+looking+glass
         key = f"{terms[0]}+{terms[1]}+looking+glass"
@@ -189,7 +190,10 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
         for url in tmp_urls:
             log_url_file.write(url + '\n')
         candidate_urls.update(tmp_urls)
-        
+        count += 1
+        if count % 10 == 0:
+            print('Thread {} processed {} terms, {} left.'.format(thread_index, count, len(list_terms) - count))
+ 
     # close the log files
     log_term_file.close()
     log_url_file.close()
@@ -211,10 +215,12 @@ if __name__ == "__main__":
     # Split the cluster search terms into pieces
     list_cluster_search_terms = list(cluster_search_terms)
     
-    list_cluster_search_terms = list_cluster_search_terms[:12]
+    # only care about the first half
+    list_cluster_search_terms = list_cluster_search_terms[:len(list_cluster_search_terms)//2]
     
     num_terms = len(list_cluster_search_terms)
     list_term_slices = [list_cluster_search_terms[i*num_terms // NUM_THREADS:(i+1)*num_terms // NUM_THREADS] for i in range(NUM_THREADS)]
+    
     # Start searching for the webpages by using the cluster search terms
     # Parallelize the searching process, and use future to capture the results
     futures = []

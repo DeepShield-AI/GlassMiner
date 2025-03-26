@@ -1,5 +1,4 @@
 import os
-import numpy as np
 # ====================== Directory & path Configs ====================== #
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
