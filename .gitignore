@@ -5,4 +5,4 @@ __pycache__
 *.gz
 *.log
 test.*
-/seed_pages/output
+*/output

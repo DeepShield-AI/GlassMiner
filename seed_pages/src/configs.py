@@ -10,7 +10,6 @@ VERIFIED_DIR = os.path.join(OUTPUT_DIR, "verified")
 UNVERIFIED_DIR = os.path.join(OUTPUT_DIR, "unverified")
 UNRELATED_DIR = os.path.join(OUTPUT_DIR, "unrelated")
 LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
-OLD_LOGS_DIR = os.path.join(OUTPUT_DIR, "old_logs")
 
 AVAI_FILE = "available_lg_page_list.json"
 FAIL_FILE = "failed_lg_page_list.json"
@@ -70,7 +69,7 @@ FILE_NAME_MAX_LENGTH = 200
 PTN_CHAR = r'^[^\p{L}\u4e00-\u9fff\u0400-\u04FF]*$'
 PTN_IP = r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b'
 
-SHINGLE_SIZE = 4  # The size of the shingle, important for the Jaccard similarity
+SHINGLE_SIZE = 3  # The size of the shingle, important for the Jaccard similarity
 IGNORE_THRESHOLD = 4 # The text with characters less than this threshold will be ignored
 TEXT_LEN_MAX_THRESHOLD = 50  # The threshold of the text length, remove the text if it's too long
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short

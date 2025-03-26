@@ -4,6 +4,7 @@ import warnings
 import random
 import requests
 import ssl
+import regex as re
 from math import log2
 from difflib import SequenceMatcher
 from niteru.html_parser import parse_html
@@ -13,6 +14,8 @@ from configs import *
 requests.packages.urllib3.disable_warnings()
 context = ssl.create_default_context()
 context.set_ciphers('HIGH:!DH:!aNULL')
+
+TOKINIZER = None
 
 def request_with_random_header(url: str) -> BeautifulSoup:
     """
@@ -107,6 +110,26 @@ def parse_webpages(webpage) -> BeautifulSoup:
         soup = BeautifulSoup(webpage, "xml")
     return soup
 
+def is_symbols(token):
+    if re.match(PTN_CHAR, token):
+        return True
+    return False
+
+def tokinize_text(text: str):
+    """
+    Tokenize the text into words.
+    """
+    global TOKINIZER
+    if TOKINIZER == None:
+        from transformers import BertTokenizer
+        TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
+    text = text.lower()
+    tokens = TOKINIZER.tokenize(text)
+    words = TOKINIZER.convert_tokens_to_string(tokens).split()
+    words = filter_out_useless_text(words)
+    
+    return words
+
 def filter_out_useless_text(list_of_text):
     """
     Filter out the text whose length is longer than the threshold.
@@ -115,6 +138,8 @@ def filter_out_useless_text(list_of_text):
     new_list = []
     for text in list_of_text:
         if len(text) > TEXT_LEN_MAX_THRESHOLD or len(text) < IGNORE_THRESHOLD:
+            continue
+        if is_symbols(text):
             continue
         new_list.append(text)
     return new_list

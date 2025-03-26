@@ -13,25 +13,12 @@ from disjoint_set import DisjointSet
 # Import the customized content
 from configs import *
 from utils import *
-TOKINIZER = None
 
-def is_symbols(token):
-    if re.match(PTN_CHAR, token):
-        return True
-    return False
-
-def shingle(text, k):
+def shingle(words, k):
     """
-    1. Lowercase the text and remove all the punctuations.
-    2. Tokenize the text into words.
-    3. Create the shingles by combining consecutive k words.
+    Create the shingles by combining consecutive k words.
     """
-    text = text.lower()
-    tokens = TOKINIZER.tokenize(text)
-    words = TOKINIZER.convert_tokens_to_string(tokens).split()
-    words = [word for word in words if not is_symbols(word)]
-    shingles = {tuple(words[i:i+k]) for i in range(len(words) - k + 1)}
-    return shingles
+    return {tuple(words[i:i+k]) for i in range(len(words) - k + 1)}
 
 def jaccard_similarity(shingles1, shingles2):
     intersection = shingles1.intersection(shingles2)
@@ -79,7 +66,7 @@ def calculate_structure_similarity(verified_lg_info):
                 print(f"{pair_count} pairs of webpages have been calculated.")
     return mat_sim
 
-def cluster_webpages_by_similarity(indices, mat_sim, threshold):
+def cluster_webpages_by_similarity(indices, mat_sim, threshold, abs_threshold):
     """
     For each webpage i, find its most similar webpage j (j > i) that has similarity > threshold,
     and merge them into the same cluster.
@@ -93,6 +80,9 @@ def cluster_webpages_by_similarity(indices, mat_sim, threshold):
         max_j = -1
         # Find the most similar webpage j among remaining webpages
         for j in range(i+1, len(indices)):
+            # For each webpage with similarity > abs_threshold, directly merge them
+            if mat_sim[i][j] > abs_threshold:
+                clusters.union(i, j)
             if mat_sim[i][j] > max_sim:
                 max_sim = mat_sim[i][j]
                 max_j = j
@@ -115,13 +105,13 @@ def cluster_webpages_by_similarity(indices, mat_sim, threshold):
 
 if __name__ == "__main__":
     # Load the seed pages, and their shingles
+    verified_lg_info = None
+    tokinized_content = None
     try:
         verified_lg_info = pkl.load(open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "rb"))
+        tokinized_content = pkl.load(open(os.path.join(OUTPUT_DIR, "tokinized_content.bin"), "rb"))
     except:
-        # Initialize the tokenizer
-        from transformers import BertTokenizer
-        TOKINIZER = BertTokenizer.from_pretrained("bert-base-multilingual-uncased")
-        
+        tokinized_content = {}
         unique_verified_pages = json.load(open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "r"))
         verified_lg_info = []
         count = 0
@@ -137,19 +127,22 @@ if __name__ == "__main__":
                 seed_content = f.read()
                 if len(seed_content) < TEXT_LEN_MIN_THRESHOLD:
                     continue
-            # Default shingle size only
+            # Tokinize the page content, and store to the 
+            tokens = tokinize_text(seed_content)
+            tokinized_content[url] = tokens
             verified_lg_info.append({
                 "url": url,
                 "filename": filename,
                 "content": seed_content,
                 "shingle": {
-                    k: shingle(seed_content, k) for k in SHINGLE_LEN_LIST
+                    k: shingle(tokens, k) for k in SHINGLE_LEN_LIST
             }})
             count += 1
             if count % 500 == 0:
                 print(f"{count} pages have been processed.")
         os.makedirs(LOGS_DIR, exist_ok=True)
         pkl.dump(verified_lg_info, open(os.path.join(LOGS_DIR, "verified_lg_info.bin"), "wb"))
+        pkl.dump(tokinized_content, open(os.path.join(OUTPUT_DIR, "tokinized_content.bin"), "wb"))
 
     print("Starting two-stage clustering.")
     print("\n=== Stage 1: Structure similarity ===")
@@ -160,7 +153,8 @@ if __name__ == "__main__":
         pkl.dump(mat_sim_structure, open(os.path.join(LOGS_DIR, SIM_FILE.format(0)), "wb"))
     
     clusters_1st, url2cluster_1st = cluster_webpages_by_similarity(
-        [i for i in range(len(verified_lg_info))], mat_sim_structure, threshold=STRUC_THRESHOLD
+        [i for i in range(len(verified_lg_info))], mat_sim_structure, 
+        threshold=STRUC_THRESHOLD, abs_threshold=STRUC_THRESHOLD + 0.1
     )
     
     # Sort clusters by size
@@ -208,7 +202,7 @@ if __name__ == "__main__":
                     sub_mat[i][j] = mat_sim_corpus[orig_j][orig_i]
         
         sub_clusters_2nd, _ = cluster_webpages_by_similarity(
-            indices, sub_mat, threshold=CORPUS_THRESHOLD
+            indices, sub_mat, threshold=CORPUS_THRESHOLD, abs_threshold=CORPUS_THRESHOLD + 0.1
         )
         
         # Record final clustering results for this cluster
