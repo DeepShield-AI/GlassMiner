@@ -104,10 +104,7 @@ def extract_url_from_bing_search(driver: webdriver.Chrome):
     time.sleep(1)
     source_code = driver.page_source
     
-    if('There are no results for' in source_code.replace('\n','')):
-        print('No results found')
-        
-    else:
+    if('There are no results for' not in source_code.replace('\n','')):
         soup = bs(source_code, "html.parser")
         # eg: https://learn.microsoft.com › en-us › advertising › guides -> https://learn.microsoft.com/en-us/advertising/guides
         for cite in soup.find_all('cite'):
@@ -142,6 +139,10 @@ def search_for_one_keyword(browser, keyword, is_first=False):
     if is_first:
         gap_time = random.randint(70, 120) / 10    
         time.sleep(gap_time)
+    
+    if len(tmp_urls) == 0:
+        print(f"Cannot find any urls for {keyword}")
+        return candidate_urls
     
     time.sleep(1)
     js = 'window.scrollTo(0, document.body.scrollHeight);'
