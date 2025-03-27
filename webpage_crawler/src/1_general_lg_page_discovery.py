@@ -18,6 +18,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import selenium
+from urllib.parse import quote_plus
+
 
 
 from configs import *
@@ -107,7 +109,10 @@ def extract_url_from_bing_search(driver: webdriver.Chrome):
     if('There are no results for' not in source_code.replace('\n','')):
         soup = bs(source_code, "html.parser")
         # eg: https://learn.microsoft.com › en-us › advertising › guides -> https://learn.microsoft.com/en-us/advertising/guides
-        for cite in soup.find_all('cite'):
+        cite_tags = soup.find_all('cite')
+        if len(cite_tags) == 0:
+            return None
+        for cite in cite_tags:
             raw_text = cite.get_text()
             url = ''
             # Split the text by space, and then join them with '/'
@@ -128,7 +133,7 @@ def extract_url_from_bing_search(driver: webdriver.Chrome):
             urls.append(url)
     return urls
 
-def search_for_one_keyword(browser, keyword, is_first=False):
+def search_for_one_keyword(browser, keyword):
     # Search term: key+looking+glass
     candidate_urls = set()
     url = 'https://cn.bing.com/search?q=' + keyword + '&first=1&FORM=PERE1'
@@ -136,13 +141,20 @@ def search_for_one_keyword(browser, keyword, is_first=False):
     ## 获取当前页面中的结果的 URL，记录总数，直到满 500 条或者没有更多结果
     tmp_urls = extract_url_from_bing_search(browser)
     
-    if is_first:
-        gap_time = random.randint(70, 120) / 10    
-        time.sleep(gap_time)
-    
-    if len(tmp_urls) == 0:
-        print(f"Cannot find any urls for {keyword}")
-        return candidate_urls
+    gap_time = random.randint(50, 100) / 10    
+    time.sleep(gap_time)
+
+    # rate limit by bing
+    limit_count = 0
+    while tmp_urls is None:
+        limit_count += 1
+        if limit_count > 2:
+            return None
+
+        browser.get(url)
+        tmp_urls = extract_url_from_bing_search(browser)
+        gap_time = random.randint(50, 100) / 10
+        
     
     time.sleep(1)
     js = 'window.scrollTo(0, document.body.scrollHeight);'
@@ -183,8 +195,11 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
     count = 0
     for terms in list_terms:
         # Search term: key+looking+glass
-        key = f"{terms[0]}+{terms[1]}+looking+glass"
+        key = quote_plus(f'"{terms[0]}" "{terms[1]}" looking glass')
         tmp_urls = search_for_one_keyword(browser, key)
+        if tmp_urls is None:
+            print(f"Cannot find any urls for {key}")
+            continue
         # write the terms to log file
         log_term_file.write(terms[0] + ' ' + terms[1] + '\n')
         # flush the buffer
