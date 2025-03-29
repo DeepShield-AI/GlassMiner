@@ -133,15 +133,10 @@ def extract_url_from_bing_search(driver: webdriver.Chrome):
             urls.append(url)
     return urls
 
-def search_for_one_keyword(browser, keyword):
-    # Search term: key+looking+glass
-    candidate_urls = set()
-    url = 'https://cn.bing.com/search?q=' + keyword + '&first=1&FORM=PERE1'
-    browser.get(url)
-    ## 获取当前页面中的结果的 URL，记录总数，直到满 500 条或者没有更多结果
+def perform_search_with_retry(browser, query_url):
+    browser.get(query_url)
     tmp_urls = extract_url_from_bing_search(browser)
-    
-    gap_time = random.randint(50, 100) / 10    
+    gap_time = random.randint(20, 80) / 10    
     time.sleep(gap_time)
 
     # rate limit by bing
@@ -149,33 +144,38 @@ def search_for_one_keyword(browser, keyword):
     while tmp_urls is None:
         limit_count += 1
         if limit_count > 2:
-            return None
-
-        browser.get(url)
+            return []
+        browser.get(query_url)
         tmp_urls = extract_url_from_bing_search(browser)
         gap_time = random.randint(50, 100) / 10
-        
+    return tmp_urls
+
+def search_for_one_keyword(browser, keyword):
+    # Search term: key+looking+glass
+    candidate_urls = set()
+    url = 'https://cn.bing.com/search?q=' + keyword + '&first=1&FORM=QBRE'
+    browser.get(url)
+    ## 获取当前页面中的结果的 URL，记录总数，直到满 500 条或者没有更多结果
+    tmp_urls = perform_search_with_retry(browser, url)
     
     time.sleep(1)
     js = 'window.scrollTo(0, document.body.scrollHeight);'
     browser.execute_script(js)
     time.sleep(2)
+    
+    # If the first page has no results, return None
+    if len(tmp_urls) == 0:
+        print(f"Cannot find any urls for {keyword}")
+        return candidate_urls
+    
     collected_count = len(tmp_urls)
     candidate_urls.update(tmp_urls)
     
     while collected_count < 500:
-        url = 'https://cn.bing.com/search?q=' + keyword + '&first='+str(collected_count+1)+'&FORM=PERE1'
-        try:
-            browser.get(url)
-        except selenium.common.exceptions.TimeoutException as e:
-            print(e)
-            continue
-        # If reach the end of the search results, stop
-        if('There are no results for' in browser.page_source.replace('\n','')):
-            break
-        tmp_urls = extract_url_from_bing_search(browser)
+        url = 'https://cn.bing.com/search?q=' + keyword + '&first='+str(collected_count+1)+'&FORM=QBRE'
+        tmp_urls = perform_search_with_retry(browser, url)
         candidate_urls.update(tmp_urls)
-        collected_count+=len(tmp_urls)
+        collected_count += max(len(tmp_urls), 1)
     return candidate_urls
 
 def fetch_one_piece_of_webpages(list_terms, thread_index):
@@ -186,6 +186,7 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
     timer_start = time.time()
     browser = init_browser()
     candidate_urls = set()
+    failed_terms = set()
     
     # Log the processed terms
     log_term_file = open(os.path.join(LOGS_DIR, 'log_terms_' + str(thread_index) + '.txt'), 'a')
@@ -197,19 +198,22 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
         # Search term: key+looking+glass
         key = quote_plus(f'"{terms[0]}" "{terms[1]}" looking glass')
         tmp_urls = search_for_one_keyword(browser, key)
-        if tmp_urls is None:
+        
+        if len(tmp_urls) == 0:
             print(f"Cannot find any urls for {key}")
-            continue
-        # write the terms to log file
-        log_term_file.write(terms[0] + ' ' + terms[1] + '\n')
-        # flush the buffer
-        log_term_file.flush()
-        # write the urls to file
-        for url in tmp_urls:
-            log_url_file.write(url + '\n')
-        # flush the buffer
-        log_url_file.flush()
-        candidate_urls.update(tmp_urls)
+            # write the terms to log file
+            log_term_file.write(terms[0] + ' ' + terms[1] + '\n')
+            # flush the buffer
+            log_term_file.flush()
+            failed_terms.add(terms)
+        else:
+            # write the urls to file
+            for url in tmp_urls:
+                log_url_file.write(url + '\n')
+            # flush the buffer
+            log_url_file.flush()
+            candidate_urls.update(tmp_urls)
+
         count += 1
         if count % 10 == 0:
             print('Thread {} processed {} terms, {} left.'.format(thread_index, count, len(list_terms) - count))
@@ -220,7 +224,7 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
     browser.quit()
     timer_end = time.time()
     print('Thread {} end, time cost: {}, {} urls are collected'.format(thread_index, timer_end - timer_start, len(candidate_urls)))
-    return candidate_urls
+    return candidate_urls, failed_terms
 
 if __name__ == "__main__":
     dict_city_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_city_by_name.bin"), "rb"))
@@ -250,8 +254,13 @@ if __name__ == "__main__":
             futures.append(future)
         # Collect the results
         all_urls = set()
+        all_failed_terms = set()
         for future in as_completed(futures):
-            all_urls.update(future.result())
+            candidate_urls, failed_terms = future.result()
+            all_urls.update(candidate_urls)
+            all_failed_terms.update(failed_terms)
         # Save the results
         with open(os.path.join(OUTPUT_DIR, "candidate_urls.bin"), "wb") as f:
             pkl.dump(all_urls, f)
+        with open(os.path.join(OUTPUT_DIR, "failed_terms.bin"), "wb") as f:
+            pkl.dump(all_failed_terms, f)
