@@ -8,19 +8,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import json
 import pickle as pkl
-import random
-import threading
-from bs4 import BeautifulSoup as bs
-from selenium import webdriver
 import time
 import json
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import selenium
 from urllib.parse import quote_plus
-
-
 
 from configs import *
 from utils import *
@@ -81,102 +71,6 @@ def purify_the_corpus(dict_city_by_name):
         set_general_keywords -= cluster_keywords
     
     return set_general_keywords, dict_set_cluster_keywords
-
-def init_browser():
-    """
-    Initialize Chrome browser in headless mode with necessary options.
-    Hide from anti-crawler detection
-    """
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_argument("--headless")
-    options.add_argument("--disable-blink-features")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
-
-def extract_url_from_bing_search(driver: webdriver.Chrome):
-    urls = []
-    time.sleep(1)
-    js = 'window.scrollTo(0, document.body.scrollHeight);'
-    driver.execute_script(js)
-    tmp_gap = random.randint(20, 40) / 10
-    time.sleep(tmp_gap)
-    driver.execute_script(js)
-    time.sleep(1)
-    source_code = driver.page_source
-    
-    if('There are no results for' not in source_code.replace('\n','')):
-        soup = bs(source_code, "html.parser")
-        # eg: https://learn.microsoft.com › en-us › advertising › guides -> https://learn.microsoft.com/en-us/advertising/guides
-        cite_tags = soup.find_all('cite')
-        if len(cite_tags) == 0:
-            return None
-        for cite in cite_tags:
-            raw_text = cite.get_text()
-            url = ''
-            # Split the text by space, and then join them with '/'
-            # If the last character is '…', remove it
-            slices = raw_text.split(' ')
-            if slices[-1].endswith('…') or slices[-1].endswith('...'):
-                slices = slices[:-1]
-            for slice in slices:
-                if slice == '›':
-                    continue
-                url += slice + '/'
-            if len(url) == 0:
-                continue                  
-            url = url.rstrip('/')
-            # if the url are not start with http, add it
-            if not url.startswith('http'):
-                url = 'https://' + url
-            urls.append(url)
-    return urls
-
-def perform_search_with_retry(browser, query_url):
-    browser.get(query_url)
-    tmp_urls = extract_url_from_bing_search(browser)
-    gap_time = random.randint(20, 80) / 10    
-    time.sleep(gap_time)
-
-    # rate limit by bing
-    limit_count = 0
-    while tmp_urls is None:
-        limit_count += 1
-        if limit_count > 2:
-            return []
-        browser.get(query_url)
-        tmp_urls = extract_url_from_bing_search(browser)
-        gap_time = random.randint(50, 100) / 10
-    return tmp_urls
-
-def search_for_one_keyword(browser, keyword):
-    # Search term: key+looking+glass
-    candidate_urls = set()
-    url = 'https://cn.bing.com/search?q=' + keyword + '&first=1&FORM=QBRE'
-    browser.get(url)
-    ## 获取当前页面中的结果的 URL，记录总数，直到满 500 条或者没有更多结果
-    tmp_urls = perform_search_with_retry(browser, url)
-    
-    time.sleep(1)
-    js = 'window.scrollTo(0, document.body.scrollHeight);'
-    browser.execute_script(js)
-    time.sleep(2)
-    
-    # If the first page has no results, return None
-    if len(tmp_urls) == 0:
-        print(f"Cannot find any urls for {keyword}")
-        return candidate_urls
-    
-    collected_count = len(tmp_urls)
-    candidate_urls.update(tmp_urls)
-    
-    while collected_count < 500:
-        url = 'https://cn.bing.com/search?q=' + keyword + '&first='+str(collected_count+1)+'&FORM=QBRE'
-        tmp_urls = perform_search_with_retry(browser, url)
-        candidate_urls.update(tmp_urls)
-        collected_count += max(len(tmp_urls), 1)
-    return candidate_urls
 
 def fetch_one_piece_of_webpages(list_terms, thread_index):
     # Sleep for index * 20 seconds to avoid the anti-crawler detection
@@ -240,7 +134,7 @@ if __name__ == "__main__":
     list_cluster_search_terms = list(cluster_search_terms)
     
     # only care about the first half
-    list_cluster_search_terms = list_cluster_search_terms[:len(list_cluster_search_terms)//2]
+    list_cluster_search_terms = list_cluster_search_terms
     
     num_terms = len(list_cluster_search_terms)
     list_term_slices = [list_cluster_search_terms[i*num_terms // NUM_THREADS:(i+1)*num_terms // NUM_THREADS] for i in range(NUM_THREADS)]

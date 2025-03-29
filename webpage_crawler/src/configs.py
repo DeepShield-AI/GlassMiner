@@ -4,11 +4,20 @@ import os
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output")
 LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
+SAVE_DIR = os.path.join(OUTPUT_DIR, "downloaded")
 
 UNIQ_FILE = "unique_lg_page_list.json"
 DUP_FILE = "dict_hash_contents.json"
+AVAI_FILE = "available_lg_page_list.json"
+
+GEOLITE_ASN = f'{DATA_DIR}/GeoLite2-ASN.mmdb'
+IPINFO_ASN = f'{DATA_DIR}/IPinfo-ASN.mmdb'
+AVAI_FILE = "available_lg_page_list.json"
+CANDIDATE_FILE = "candidate_lg_page_list.json"
 
 # ====================== Crawler Configs ====================== #
+BASE_URL = "https://cn.bing.com/search?q={}&first={}&FORM=QBRE"
+
 
 # crawler configs
 MAX_RETRY = 2
