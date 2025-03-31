@@ -54,10 +54,9 @@ def get_ip_from_url(url):
         # 提取IP地址（排除IPv6的百分号后缀）
         ips = [ip[4][0].split('%')[0] for ip in ip_list]
         # lock the cache for async
-        CACHE_LOCK.acquire()
-        for ip in ips:
-            DOMAIN2IP_CACHE[ip] = ips
-        CACHE_LOCK.release()
+        with CACHE_LOCK:
+            for ip in ips:
+                DOMAIN2IP_CACHE[ip] = ips
         return list(set(ips))  # 去重
     except socket.gaierror:
         return None
