@@ -112,7 +112,6 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
                 url = "https" + url[4:]
             else:
                 url = "http" + url[5:]
-            time.sleep(1 * retry_count)
             return fetch_one_page(url, session, retry_count + 1)
         return {
             "original_url": url,
@@ -234,12 +233,12 @@ def parse_webpages(webpage) -> BeautifulSoup:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             soup = BeautifulSoup(webpage, "html.parser")
-            # 检查是否有 XML 解析警告
+            # Check for XML parsed as HTML warnings
             if any("XMLParsedAsHTMLWarning" in str(warning.message) for warning in w):
-                raise Warning("Detected XML parsed as HTML, switching to XML parser.")
-    except Warning:
-        # 重新使用 xml 解析器解析
-        soup = BeautifulSoup(webpage, "xml")
+                soup = BeautifulSoup(webpage, "xml")
+    except Exception as e:
+        print(f"Error parsing webpage: {e}")
+        return None
     return soup
 
 

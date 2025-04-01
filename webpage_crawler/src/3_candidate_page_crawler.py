@@ -94,6 +94,7 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
     # random shuffle the list to avoid being blocked
     random.shuffle(lg_url_list)
     
+    os.makedirs(SAVE_DIR, exist_ok=True)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         with requests.Session() as session:
             partial_crawl = partial(fetch_one_page, session=session)
@@ -105,25 +106,31 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                 processed_cnt += 1
                 if result['success']:
                     soup = parse_webpages(result['content'])
-                    cleaned_soup = remove_script_and_style(soup)
-                    filename = url_to_filename(result['final_url'])
-                    filepath = os.path.join(SAVE_DIR, filename)
-                    redirected_lg_page_list[result["original_url"]] = result["final_url"]
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(str(cleaned_soup))
-                        
-                    succ_cnt += 1
-                    available_lg_page_list.append({
-                        "url": result['final_url'],
-                        "filename": filename,
-                    })
+                    if soup is not None:
+                        cleaned_soup = remove_script_and_style(soup)
+                        filename = url_to_filename(result['final_url'])
+                        filepath = os.path.join(SAVE_DIR, filename)
+                        redirected_lg_page_list[result["original_url"]] = result["final_url"]
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(str(cleaned_soup))
+                        succ_cnt += 1
+                        available_lg_page_list.append({
+                            "url": result['final_url'],
+                            "filename": filename,
+                        })
+                    else:
+                        failed_cnt += 1
+                        failed_lg_page_list.append({
+                            "url": result["original_url"], 
+                            "err": "Cannot parse the webpage.",
+                        })
                 else:
                     failed_cnt += 1
                     failed_lg_page_list.append({
                         "url": result["original_url"], 
                         "err": str(result["error"]),
-                    })            
-                if processed_cnt % 500 == 0:
+                    })
+                if processed_cnt % 200 == 0:
                     print("{} processed, {} success, {} failed".format(processed_cnt, succ_cnt, failed_cnt))
     return available_lg_page_list, failed_lg_page_list
 

@@ -2,7 +2,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COM
 import pickle as pkl
 import json
 from urllib.parse import quote_plus
-import concurrent
 from collections import deque
 
 from configs import *

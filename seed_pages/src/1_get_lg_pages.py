@@ -282,22 +282,28 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                 processed_cnt += 1
                 if result['success']:
                     soup = parse_webpages(result['content'])
-                    cleaned_soup = remove_script_and_style(soup)
-                    filename = url_to_filename(result['final_url'])
-                    filepath = os.path.join(SAVE_DIR, filename)
-                    redirected_lg_page_list[result["original_url"]] = result["final_url"]
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(str(cleaned_soup))
-                    seed_contents = remove_tags_and_get_short_text(cleaned_soup)
-                    # save to the output directory
-                    with open(os.path.join(PROCS_DIR, filename), "w") as f:
-                        f.write("\n".join(seed_contents))
-                        
-                    succ_cnt += 1
-                    available_lg_page_list.append({
-                        "url": result['final_url'],
-                        "filename": filename,
-                    })
+                    if soup is not None:
+                        cleaned_soup = remove_script_and_style(soup)
+                        filename = url_to_filename(result['final_url'])
+                        filepath = os.path.join(SAVE_DIR, filename)
+                        redirected_lg_page_list[result["original_url"]] = result["final_url"]
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(str(cleaned_soup))
+                        seed_contents = remove_tags_and_get_short_text(cleaned_soup)
+                        # save to the output directory
+                        with open(os.path.join(PROCS_DIR, filename), "w") as f:
+                            f.write("\n".join(seed_contents))                            
+                        succ_cnt += 1
+                        available_lg_page_list.append({
+                            "url": result['final_url'],
+                            "filename": filename,
+                        })
+                    else:
+                        failed_cnt += 1
+                        failed_lg_page_list.append({
+                            "url": result["original_url"], 
+                            "err": "Cannot parse the webpage.",
+                        })
                 else:
                     failed_cnt += 1
                     failed_lg_page_list.append({
@@ -328,6 +334,8 @@ def get_candidate_urls(page_info):
         with open(os.path.join(SAVE_DIR, filename), "r") as f:
             html_content = f.read()
             soup = parse_webpages(html_content)
+            if soup is None:
+                return candidate_urls
         
         tags_with_lg = []
         for text_node in soup.find_all(string=True):

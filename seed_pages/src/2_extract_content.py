@@ -34,6 +34,8 @@ def get_unique_urls(pages):
             with open(os.path.join(SAVE_DIR, page["filename"]), "r") as f:
                 html_text = f.read()
             soup = parse_webpages(html_text)
+            if soup is None:
+                continue
             cleaned_soup = remove_script_and_style(soup)
             content = remove_tags_and_get_short_text(cleaned_soup)
             content = "\n".join(content)
