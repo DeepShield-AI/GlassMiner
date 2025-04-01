@@ -15,7 +15,7 @@ from urllib.parse import quote_plus
 from configs import *
 from utils import *
 
-def build_cluster_search_terms(dict_set_cluster_keywords):
+def build_search_terms(dict_set_cluster_keywords, dict_general_keywords):
     """
     Build the search terms for the search engine.
     Every time we choose one cluster, find all pairs of keywords in the cluster.
@@ -28,6 +28,11 @@ def build_cluster_search_terms(dict_set_cluster_keywords):
         for i in range(len(list_sorted_keywords)):
             for j in range(i+1, len(list_sorted_keywords)):
                 search_terms.add((list_sorted_keywords[i], list_sorted_keywords[j]))
+    # Add the general keyword pairs
+    list_sorted_general_keywords = sorted(list(dict_general_keywords))
+    for i in range(len(list_sorted_general_keywords)):
+        for j in range(i+1, len(list_sorted_general_keywords)):
+            search_terms.add((list_sorted_general_keywords[i], list_sorted_general_keywords[j]))
     return search_terms
 
 def purify_the_corpus(dict_city_by_name):
@@ -73,8 +78,8 @@ def purify_the_corpus(dict_city_by_name):
     return set_general_keywords, dict_set_cluster_keywords
 
 def fetch_one_piece_of_webpages(list_terms, thread_index):
-    # Sleep for index * 20 seconds to avoid the anti-crawler detection
-    time.sleep(thread_index * 20)
+    # Sleep for index * 30 seconds to avoid the anti-crawler detection
+    time.sleep(thread_index * 30)
     print('Thread ' + str(thread_index) + ' start')
     
     timer_start = time.time()
@@ -125,16 +130,19 @@ if __name__ == "__main__":
     # dict_asn_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_asn_by_name.bin"), "rb"))
     set_general_keywords, dict_set_cluster_keywords = purify_the_corpus(dict_city_by_name)
     # Build the search terms for the search engine
-    cluster_search_terms = build_cluster_search_terms(dict_set_cluster_keywords)
-    print(f"Cluster search terms: {len(cluster_search_terms)}")
+    search_terms = build_search_terms(dict_set_cluster_keywords)
+    total_length = len(search_terms)
+    print(f"Cluster search terms: {total_length}")
     
     os.makedirs(LOGS_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     # Split the cluster search terms into pieces
-    list_cluster_search_terms = list(cluster_search_terms)
+    list_cluster_search_terms = list(search_terms)
     
-    # only care about the first half
-    list_cluster_search_terms = list_cluster_search_terms
+    # For distributed crawler usage.
+    # index = 0
+    # NUM_CRAWLER = 6
+    # list_cluster_search_terms = list_cluster_search_terms[index*total_length//NUM_CRAWLER:(index+1)*total_length//NUM_CRAWLER]
     
     num_terms = len(list_cluster_search_terms)
     list_term_slices = [list_cluster_search_terms[i*num_terms // NUM_THREADS:(i+1)*num_terms // NUM_THREADS] for i in range(NUM_THREADS)]

@@ -77,4 +77,4 @@ STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
 GENERAL_WEIGHT_THRESHOLD = 0.005 # The threshold of the weight for the useful words
 CLUSTER_WEIGHT_THRESHOLD = 0.015
 CLUSTER_SIZE_THRESHOLD = 4
-NUM_THREADS = 12
+NUM_THREADS = 8
