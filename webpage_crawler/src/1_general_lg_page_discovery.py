@@ -15,7 +15,7 @@ from urllib.parse import quote_plus
 from configs import *
 from utils import *
 
-def build_search_terms(dict_set_cluster_keywords, dict_general_keywords):
+def build_search_terms(dict_set_cluster_keywords, set_general_keywords):
     """
     Build the search terms for the search engine.
     Every time we choose one cluster, find all pairs of keywords in the cluster.
@@ -29,7 +29,7 @@ def build_search_terms(dict_set_cluster_keywords, dict_general_keywords):
             for j in range(i+1, len(list_sorted_keywords)):
                 search_terms.add((list_sorted_keywords[i], list_sorted_keywords[j]))
     # Add the general keyword pairs
-    list_sorted_general_keywords = sorted(list(dict_general_keywords))
+    list_sorted_general_keywords = sorted(list(set_general_keywords))
     for i in range(len(list_sorted_general_keywords)):
         for j in range(i+1, len(list_sorted_general_keywords)):
             search_terms.add((list_sorted_general_keywords[i], list_sorted_general_keywords[j]))
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # dict_asn_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_asn_by_name.bin"), "rb"))
     set_general_keywords, dict_set_cluster_keywords = purify_the_corpus(dict_city_by_name)
     # Build the search terms for the search engine
-    search_terms = build_search_terms(dict_set_cluster_keywords)
+    search_terms = build_search_terms(dict_set_cluster_keywords, set_general_keywords)
     total_length = len(search_terms)
     print(f"Cluster search terms: {total_length}")
     
