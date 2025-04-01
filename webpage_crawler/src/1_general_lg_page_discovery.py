@@ -150,7 +150,7 @@ if __name__ == "__main__":
     # Start searching for the webpages by using the cluster search terms
     # Parallelize the searching process, and use future to capture the results
     futures = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
         for i in range(NUM_THREADS):
             future = executor.submit(fetch_one_piece_of_webpages, list_term_slices[i], i)
             futures.append(future)
