@@ -9,6 +9,7 @@ import time
 import random
 from bs4 import BeautifulSoup
 import requests
+import regex as re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -31,7 +32,7 @@ def get_asn_from_ip(ip: str):
     """
     response = ASN_READER_2.get(ip)
     if response is not None:
-        return response['asn'][2:]
+        return int(response['asn'][2:])
     else:
         try:
             response = ASN_READER_1.asn(ip)
@@ -56,10 +57,22 @@ def get_ip_from_url(url):
         # lock the cache for async
         with CACHE_LOCK:
             for ip in ips:
-                DOMAIN2IP_CACHE[ip] = ips
+                DOMAIN2IP_CACHE[domain] = ip
         return list(set(ips))  # 去重
     except socket.gaierror:
         return None
+
+def extract_asn_from_url(url):
+    """
+    Extract the ASN from the URL. 
+    """
+    # Maybe leading / or .
+    pattern = r"[/\.]as(\d+)\."
+    asn_match = re.search(pattern, url, flags=re.IGNORECASE)
+    asn = 0
+    if asn_match:
+        asn = int(asn_match.group(1))
+    return asn
 
 def get_asn_from_url(url):
     """
@@ -210,6 +223,9 @@ def search_for_one_keyword(browser, keyword, num=500):
         tmp_urls = perform_search_with_retry(browser, url)
         candidate_urls.update(tmp_urls)
         collected_count += max(len(tmp_urls), 1)
+    # cut the urls to num
+    if len(candidate_urls) > num:
+        candidate_urls = set(list(candidate_urls)[:num])
     return candidate_urls
 
 def url_to_filename(url: str) -> str:

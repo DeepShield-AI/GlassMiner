@@ -5,6 +5,7 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output")
 LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
 SAVE_DIR = os.path.join(OUTPUT_DIR, "downloaded")
+TMP_DIR = os.path.join(OUTPUT_DIR, "tmp")
 
 UNIQ_FILE = "unique_lg_page_list.json"
 DUP_FILE = "dict_hash_contents.json"
