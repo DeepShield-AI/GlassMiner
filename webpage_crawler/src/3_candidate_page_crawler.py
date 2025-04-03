@@ -128,12 +128,12 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                         "url": result["original_url"], 
                         "err": str(result["error"]),
                     })
-                if processed_cnt % 200 == 0:
+                if processed_cnt % 500 == 0:
                     print("{} processed, {} success, {} failed".format(processed_cnt, succ_cnt, failed_cnt))
     return available_lg_page_list, failed_lg_page_list
 
 if __name__ == "__main__":
-    candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "candidate_urls_old.bin"), "rb"))
+    candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "candidate_urls.bin"), "rb"))
     print("Now Start deduplication...")
     dedup_candidate_list = pre_deduplicate_by_url(candidate_list)    
     print(f"Get {len(dedup_candidate_list)} LG pages after deduplication.")
@@ -143,24 +143,6 @@ if __name__ == "__main__":
     available_candidate_list = post_deduplicate_by_url(available_candidate_list)
     
     print("Got {} available LG pages.".format(len(available_candidate_list)))
-    print("====================")
-    
-    # print("Now Start find candidate LG pages...")
-    # # Check the content of each available LG page, and get candidate LG pages
-    # candidate_urls = set()
-    # count = 0
-    # for page_info in available_candidate_list:
-    #     candidates = get_candidate_urls(page_info)
-    #     candidate_urls.update(candidates)
-    #     count += 1
-    #     if count % 500 == 0:
-    #         print(f"Processed {count} LG pages, {len(candidate_urls)} candidate LG pages are found.")
-    # print("Finding candidate LG pages done, {} candidate pages selected.".format(len(candidate_urls)))
-    # available_candidate_list, _ = check_availabilty_and_download(list(candidate_urls))
-    # print("Downloading candidate LG pages done, {} candidate LG pages are downloaded.".format(len(available_candidate_list)))
-    # available_candidate_list += available_candidate_list
-    # available_candidate_list = post_deduplicate_by_url(available_candidate_list)
-    
     with open(os.path.join(OUTPUT_DIR, CANDIDATE_FILE), "w") as f:
         json.dump(available_candidate_list, f, indent=4)
     print(f"Get {len(available_candidate_list)} available candidate pages.")

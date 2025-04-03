@@ -310,7 +310,7 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                         "url": result["original_url"], 
                         "err": str(result["error"]),
                     })            
-                if processed_cnt % 50 == 0:
+                if processed_cnt % 200 == 0:
                     print("{} processed, {} success, {} failed".format(processed_cnt, succ_cnt, failed_cnt))
     return available_lg_page_list, failed_lg_page_list
 

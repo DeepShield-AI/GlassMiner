@@ -108,24 +108,20 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
         header["User-Agent"] = random.choice(USER_AGENT_LIST)
         # First send a HEAD request to check content type
         head_response = session.head(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-        content_type = head_response.headers.get('Content-Type', '')
-        # Skip if it's a file download
-        if not content_type.startswith(('text/', 'application/json', 'application/xml')):
-            return {
-                "original_url": url,
-                "error": "Skipped file download",
-                "content": None,
-                "success": False
-            }
+        # content_type = head_response.headers.get('Content-Type', '')
+        # # Skip if it's a file download
+        # if not content_type.startswith(('text/', 'application/json', 'application/xml')):
+        #     return {
+        #         "original_url": url,
+        #         "error": "Skipped file download",
+        #         "content": None,
+        #         "success": False
+        #     }
         # ignore the https insecure warning, and allow the redirect
         response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
 
     except Exception as e:
         if retry_count < MAX_RETRY:
-            if url.startswith("http:"):
-                url = "https" + url[4:]
-            else:
-                url = "http" + url[5:]
             return fetch_one_page(url, session, retry_count + 1)
         return {
             "original_url": url,
