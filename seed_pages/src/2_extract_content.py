@@ -37,7 +37,7 @@ def get_unique_urls(pages):
             if soup is None:
                 continue
             cleaned_soup = remove_script_and_style(soup)
-            content = remove_tags_and_get_short_text(cleaned_soup)
+            content = collect_text_in_order(cleaned_soup)
             content = "\n".join(content)
             with open(os.path.join(PROCS_DIR, page["filename"]), "w") as f:
                 f.write(content)

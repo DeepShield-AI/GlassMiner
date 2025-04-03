@@ -1,5 +1,5 @@
 import time
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import warnings
 import random
 import requests
@@ -154,31 +154,29 @@ def remove_script_and_style(soup: BeautifulSoup):
         style.decompose()
     return soup
 
-def remove_tags_and_get_short_text(soup: BeautifulSoup):
+def collect_text_in_order(soup: BeautifulSoup):
     """
     Remove all the content within tags from the soup, keep the meta content and text only.
     DO NOT include the text from its children!
     Return the list of texts for given soup.
     """
     list_of_text = []    
-    for tag in soup.find_all():
-        # If the tag is a script or style tag, we skip it
-        if tag.name in ["script", "style"]:
-            continue
-        # First, we get the content in the meta tag
-        if tag.name == "meta":
-            if tag.get("content") and tag.get("name"):
-                list_of_text.append(tag.get("content"))
-        # Get the direct text of the current label (without recursion)
-        direct_texts = tag.find_all(string=True, recursive=False)
-        
-        text_list = [text.strip() for text in direct_texts]
-        list_of_text.extend(text_list)
-        # if tag is an input tag, we can extract the "value" attr
-        if tag.name == "input" and tag.get("value"):
-            list_of_text.append(tag.get("value"))
-    list_of_text = filter_out_useless_text(list_of_text)
-    return list_of_text
+    for child in soup.children:
+        if isinstance(child, NavigableString):
+            # 处理文本节点
+            text = child.strip()
+            if text:
+                list_of_text.append(text)
+        elif child.name:
+            if child.name == "meta":
+                if child.get("content") and child.get("name"):
+                    list_of_text.append(child.get("content"))
+            # if tag is an input tag, we can extract the "value" attr
+            if child.name == "input" and child.get("value"):
+                list_of_text.append(child.get("value"))
+            # 递归处理子元素
+            list_of_text.extend(collect_text_in_order(child))
+    return filter_out_useless_text(list_of_text)
 
 # For structure similarity computation.
 class StructuralComparator(SequenceMatcher):

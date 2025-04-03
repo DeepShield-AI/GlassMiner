@@ -74,7 +74,6 @@ def get_asn_from_url(url):
                 asn_set.add(asn)
     return asn_set
 
-
 def init_browser():
     """
     Initialize Chrome browser in headless mode with necessary options.
@@ -226,7 +225,6 @@ def url_to_filename(url: str) -> str:
         filename = filename[:FILE_NAME_MAX_LENGTH]
     return filename
 
-
 def parse_webpages(webpage) -> BeautifulSoup:
     """
     Adaptive parsing of the webpage content by html parser or lxml parser.
@@ -242,7 +240,6 @@ def parse_webpages(webpage) -> BeautifulSoup:
         print(f"Error parsing webpage: {e}")
         return None
     return soup
-
 
 def remove_script_and_style(soup: BeautifulSoup):
     """

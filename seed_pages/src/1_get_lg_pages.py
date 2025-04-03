@@ -289,7 +289,7 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                         redirected_lg_page_list[result["original_url"]] = result["final_url"]
                         with open(filepath, 'w', encoding='utf-8') as f:
                             f.write(str(cleaned_soup))
-                        seed_contents = remove_tags_and_get_short_text(cleaned_soup)
+                        seed_contents = collect_text_in_order(cleaned_soup)
                         # save to the output directory
                         with open(os.path.join(PROCS_DIR, filename), "w") as f:
                             f.write("\n".join(seed_contents))                            

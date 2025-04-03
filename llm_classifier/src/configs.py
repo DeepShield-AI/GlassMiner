@@ -19,14 +19,15 @@ SIMPLE_FILETER_WORDS = {
     "ping",
     "route",
     "bgp",
-    "ip address",
+    "trace",
     "mtr"
 }
 
 PTN_CHAR = r'^[^\p{L}\u4e00-\u9fff\u0400-\u04FF]*$'
 PTN_IP = r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b'
 PTN_KEYWORD = re.compile(r'\b(?:' + '|'.join(SIMPLE_FILETER_WORDS) + r')\b', re.IGNORECASE)
+RTN_LINK = r'\[(.+?)\]\((.+?)\)'
 
 IGNORE_THRESHOLD = 3 # The text with characters less than this threshold will be ignored
-TEXT_LEN_MAX_THRESHOLD = 50  # The threshold of the text length, remove the text if it's too long
+TEXT_LEN_MAX_THRESHOLD = 200  # The threshold of the text length, remove the text if it's too long
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short

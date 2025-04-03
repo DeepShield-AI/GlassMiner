@@ -17,7 +17,6 @@
 
 # Import necessary libraries
 import random
-import time
 from urllib.parse import urljoin
 import requests
 import json
@@ -107,12 +106,11 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                 if result['success']:
                     soup = parse_webpages(result['content'])
                     if soup is not None:
-                        cleaned_soup = remove_script_and_style(soup)
                         filename = url_to_filename(result['final_url'])
                         filepath = os.path.join(SAVE_DIR, filename)
                         redirected_lg_page_list[result["original_url"]] = result["final_url"]
                         with open(filepath, 'w', encoding='utf-8') as f:
-                            f.write(str(cleaned_soup))
+                            f.write(str(soup))
                         succ_cnt += 1
                         available_lg_page_list.append({
                             "url": result['final_url'],

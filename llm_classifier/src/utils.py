@@ -1,6 +1,7 @@
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import regex as re
 import warnings
+import html2text
 
 from configs import *
 
@@ -29,58 +30,37 @@ def parse_webpages(webpage) -> BeautifulSoup:
         print(f"Error parsing webpage: {e}")
         return None
     return soup
-
+    
 def is_symbols(token):
     if re.match(PTN_CHAR, token):
         return True
     return False
 
-def filter_out_useless_text(list_of_text):
-    """
-    Filter out the text whose length is longer than the threshold.
-    Remove the text with less than 
-    """
-    new_list = []
-    for text in list_of_text:
-        if len(text) > TEXT_LEN_MAX_THRESHOLD or len(text) < IGNORE_THRESHOLD:
-            continue
-        if is_symbols(text):
-            continue
-        new_list.append(text)
-    return new_list
-
-def remove_script_and_style(soup: BeautifulSoup):
-    """
-    Using BeautifulSoup to remove all the script style tages
-    """
-    for script in soup.find_all('script'):
-        script.decompose()
-    for style in soup.find_all('style'):
-        style.decompose()
-    return soup
-
-def remove_tags_and_get_short_text(soup: BeautifulSoup):
-    """
-    Remove all the content within tags from the soup, keep the meta content and text only.
-    DO NOT include the text from its children!
-    Return the list of texts for given soup.
-    """
-    list_of_text = []    
-    for tag in soup.find_all():
-        # If the tag is a script or style tag, we skip it
-        if tag.name in ["script", "style"]:
-            continue
-        # First, we get the content in the meta tag
-        if tag.name == "meta":
-            if tag.get("content") and tag.get("name"):
-                list_of_text.append(tag.get("content"))
-        # Get the direct text of the current label (without recursion)
-        direct_texts = tag.find_all(string=True, recursive=False)
-        
-        text_list = [text.strip() for text in direct_texts]
-        list_of_text.extend(text_list)
-        # if tag is an input tag, we can extract the "value" attr
-        if tag.name == "input" and tag.get("value"):
-            list_of_text.append(tag.get("value"))
-    list_of_text = filter_out_useless_text(list_of_text)
-    return list_of_text
+def collect_text_in_order(html_str):
+    handler = html2text.HTML2Text()
+    handler.ignore_emphasis = True
+    handler.ignore_links = False
+    handler.single_line_break = True
+    handler.body_width = 0
+    text = handler.handle(html_str)
+    # Split the text by \n
+    lines = text.split("\n")
+    # Remove empty lines and lines with too long words
+    filtered_lines = []
+    for line in lines:
+        # Remove leading and trailing spaces
+        line = line.strip()
+        # Check if the line is empty or contains too long words
+        if len(line) > 0 and len(line) < TEXT_LEN_MAX_THRESHOLD:
+            filtered_lines.append(line)
+    # Join the filtered lines into a single string
+    text = " ".join(filtered_lines)
+    text = re.sub(r"\s+", " ", text)
+    link_matches = re.findall(RTN_LINK, text)
+    # two groups, the first group is the text, the second group is the link
+    for match in link_matches:
+        # check if the first group contains filter words, if not, remove the link
+        if not contain_filter_words(match[0]):
+            # replace the original match with the first group
+            text = text.replace(f"[{match[0]}]({match[1]})", match[0])
+    return text.strip()
