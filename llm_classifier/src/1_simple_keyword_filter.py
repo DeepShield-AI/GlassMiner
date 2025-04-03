@@ -67,8 +67,6 @@ if __name__ == "__main__":
     filtered_page_list = []
     count = 0
     for lg_info in candidate_page_list:
-        if "lg.as36994.vodansa.net" not in lg_info['url']:
-            continue
         # Check if the webpage contains any filter words.
         html_str = open(os.path.join(SAVE_DIR, lg_info["filename"]), "r", encoding="utf-8").read()
         cleaned_str = collect_text_in_order(html_str)

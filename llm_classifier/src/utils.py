@@ -5,6 +5,18 @@ import html2text
 
 from configs import *
 
+class CustomHTMLParser(html2text.HTML2Text):
+    """
+    Custom HTML parser to handle specific cases.
+    """
+    def __init__(self):
+        super().__init__()
+
+        self.ignore_emphasis = True
+        self.ignore_links = False
+        self.single_line_break = True
+        self.body_width = 0
+
 def contain_filter_words(contents: str) -> bool:
     """
     Check if the webpage contains any filter words.
@@ -37,11 +49,34 @@ def is_symbols(token):
     return False
 
 def collect_text_in_order(html_str):
-    handler = html2text.HTML2Text()
-    handler.ignore_emphasis = True
-    handler.ignore_links = False
-    handler.single_line_break = True
-    handler.body_width = 0
+    # Part one: Extract text in input / meta, change them into direct text
+    soup = parse_webpages(html_str)
+    # Find all input with "placeholder" or "value" attributes
+    input_tags = soup.find_all("input")
+    for input_tag in input_tags:
+        text = ""
+        # Check if the input tag has a placeholder or value attribute
+        if "placeholder" in input_tag.attrs:
+            text = input_tag["placeholder"]    
+        elif "value" in input_tag.attrs:
+            text = input_tag["value"]
+        # replace input tags by [Input]:{text}
+        if text:
+            input_tag.replace_with(f"[Input]:{text}")
+    # fing the meta tags with "content" and "name" attributes
+    meta_tags = soup.find_all("meta", attrs={"name": True, "content": True})
+    # repalce meta tags with [Meta]{name}:{content}
+    meta_text = []
+    for meta_tag in meta_tags:
+        # Check if the meta tag has a name attribute
+        name = meta_tag["name"]
+        if "hyperglass" in name or "title" in name or "description" in name:            
+            content = meta_tag["content"]
+            meta_text.append(f"[Meta]:{name}:{content}")
+    meta_text = " ".join(meta_text)
+    # Part two: Extract text in the body
+    html_str = str(soup)
+    handler = CustomHTMLParser()
     text = handler.handle(html_str)
     # Split the text by \n
     lines = text.split("\n")
@@ -55,6 +90,7 @@ def collect_text_in_order(html_str):
             filtered_lines.append(line)
     # Join the filtered lines into a single string
     text = " ".join(filtered_lines)
+    text = meta_text + " " + text
     text = re.sub(r"\s+", " ", text)
     link_matches = re.findall(RTN_LINK, text)
     # two groups, the first group is the text, the second group is the link

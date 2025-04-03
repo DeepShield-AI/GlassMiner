@@ -30,6 +30,7 @@ def request_llm_and_get_response(payload):
     """
     response = requests.request("POST", url, json=payload, headers=headers)
     response_dict = response.json()
+    print("Response: ", response_dict)
     result = response_dict["choices"][0]["message"]["content"]
     # find the first number in the result
     res = re.search(r"\d+", result)
@@ -74,7 +75,7 @@ def direct_multi_classification(data):
         "messages": []
     }
     new_base_prompt["messages"].append({
-        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related but do not provide LG service; 3. LG service provider. You must output 1, 2 or 3 only.",
+        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related but do not provide LG service; 3. LG service (ping, traceroute, bgp, etc.) provider. Output 1, 2 or 3 only.",
         "role": "system"
     })
     new_base_prompt["messages"].append({
@@ -101,7 +102,7 @@ def direct_binary_classification(data):
         "messages": []
     }
     new_base_prompt_1["messages"].append({
-        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related. You must output 1 or 2 only.",
+        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related (includes links to LG or similar network tools). Output 1 or 2 only.",
         "role": "system"
     })
     new_base_prompt_2 = {
@@ -116,7 +117,7 @@ def direct_binary_classification(data):
         "messages": []
     }
     new_base_prompt_2["messages"].append({
-        "content": "Categorize webpage content: 1. Looking Glass-related but no direct service; 2. LG service provider. You must output 1 or 2 only.",
+        "content": "Categorize webpage content: 1. Looking Glass-related but no direct service; 2. LG service (traceroute, ping, bgp, etc.) provider. Output 1 or 2 only.",
         "role": "system"
     })
     new_base_prompt_1["messages"].append({
@@ -149,7 +150,7 @@ def prompted_binary_classification(data):
         "messages": []
     }
     new_base_prompt_1["messages"].append({
-        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related (includes links to LG or similar network tools). Example 1: ```Innovative Technological Solutions ### Network Tools * Network Status * DNS Propagator * Looking Glass * DNS Lookup * IP Lookup * WhoIs * ### Legal *``` contains word Looking Glass, but it does not provide links to related tools -> classify as 1. Example 2: ```Welcome to the webserver of RLP-NET. Others should send an email to our Network Operations Center The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains link to traceroute server -> classify as 2. You must output 1 or 2 only.",
+        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related (links to LG or similar network tools). Example A: ```Innovative Technological Solutions ### Network Tools * Network Status * DNS Propagator * Looking Glass * DNS Lookup * IP Lookup * WhoIs``` contains word Looking Glass, but no related links -> classify as 1. Example B: ```Welcome to the webserver of RLP-NET. The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains link to traceroute server -> classify as 2. Output 1 or 2 only.",
         "role": "system"
     })
     
@@ -164,8 +165,9 @@ def prompted_binary_classification(data):
         "n": 1,
         "messages": []
     }
+    
     new_base_prompt_2["messages"].append({
-        "content": "Categorize webpage content: 1. Looking Glass-related (includes links to LG or similar tools) but no direct service; 2. LG service provider. Example 1: ```Top 100 Internet Host Names * Web Browser User Agents * Web Technologies Cheat Sheets ## Online Traceroute Your IP address is 107.172.231.79 IP to traceroute to : TYPE: ICMP TCP``` directly provides traceroute -> classified as 2. Example 2: ```LookingGlass Server Location: Zurich Test IPv4: 185.186.76.203 Your IP Address: 107.173.10.38 Network tests host mtr ping traceroute Run Test Results``` contains location, ip and measurements (ping, mtr, etc.) -> classified as 2.  Example 3: ```[ Ping Testi ](https://atlantisnet.com.tr/internet-ping-testi/) *  100 Mbps İnternet İptal ve İade Şartları  *  Çerez Toplama Politikası  *  Gizlilik ve Güvenlik  ##### Yardım *  Sıkça Sorulan Sorular  *  İstek ve Şikayet İlet  * [ Atlantis Looking Glass ](https://lg.atlantisnet.com.tr/) *  İp Adresi Sorgulama  ##### Mobil Uygulama ###### İnternet Başvuru Hattı  0212 967 34 34  Copyright © 2014 - 2025 AtlantisNet​  ![!](https://atlantisnet.com.tr/wp-content/uploads/2023/07/faralya-digital.png)``` contains links but do not provide service -> classified as 1. Must output 1 or 2 only.",
+        "content": "Categorize webpage content: 1. Looking Glass-related (link to LG or similar tools) but no direct service; 2. LG service. If it contains network terms, commands (traceroute, ping, bgp, etc.), selection of parameters (commands, locations, addresses, etc.), it should be class 2. Example A: ```[ Ping Testi ](https://atlantisnet.com.tr/internet-ping-testi/) *  İnternet Başvurusu  *  Gizlilik ve Güvenlik  ##### Yardım * [ Atlantis Looking Glass ](https://lg.atlantisnet.com.tr/)``` contains links but no direct service -> class 1; Example B: ```Members should contact their local network administrators. The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains links but no direct service -> class 1; Example C: ```Web Browser User Agents * Web Technologies Cheat Sheets ## Online Traceroute Your IP address is 107.172.231.79 IP to traceroute to : [Input]: TYPE: [Input]:ICMP [Input]:TCP``` provide traceroute service -> class 2; Example D: ```[Meta]:og:title:INS BGP looking glass [Meta]:description:International Network Services Network Looking Glass [Meta]:hyperglass-version:2.0.4 * ## FRA Marseille, MRS1 FM * ## ZAF Durban, DMO ZD * ## ZAF Midrand, MTB ZM Help Terms ZANOG``` contains `hyperglass` from template LG webpage. -> class 2. Output 1 or 2 only.",
         "role": "system"
     })
     
@@ -209,6 +211,7 @@ dataset_1 = build_dataset(UNRELATED_FILE, 1)
 dataset_2 = build_dataset(RELATED_FILE, 2)
 dataset_3 = build_dataset(SERVICE_FILE, 3)
 dataset = dataset_1 + dataset_2 + dataset_3
+# dataset = dataset_2 + dataset_3
 print("Total dataset: ", len(dataset))
 # shuffle the dataset
 random.shuffle(dataset)
