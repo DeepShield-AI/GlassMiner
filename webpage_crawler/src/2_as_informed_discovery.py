@@ -55,7 +55,7 @@ def build_asn_domain_mapping(dict_as_info):
     return dict_asn_domain_mapping
 
 def get_general_asn_info(dict_asn_domain_mapping):
-    with open(os.path.join(OUTPUT_DIR, "candidate_urls_old.bin"), "rb") as f:
+    with open(os.path.join(OUTPUT_DIR, "candidate_urls.bin"), "rb") as f:
         candidate_urls = pkl.load(f)
     set_asn_logs = set()
     count = 0
@@ -84,9 +84,10 @@ def get_general_asn_info(dict_asn_domain_mapping):
                 continue
         failed_candidate_urls.add(url)
     
+    print(f"Total {len(failed_candidate_urls)} URLs failed to match the ASN.")
+
     # Parallelize the process of getting ASN info
-    # TODO: Not only match the ip address, but also match the domain name and asn in the url!
-    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_url = {executor.submit(get_asn_from_url, url): url for url in failed_candidate_urls}
         count = 0
         
@@ -94,7 +95,7 @@ def get_general_asn_info(dict_asn_domain_mapping):
             asn_set = future.result()
             set_asn_logs.update(asn_set)
             count += 1
-            if count % 3000 == 0:
+            if count % 2000 == 0:
                 print(f"{count} URLs have been processed.")
 
     return set_asn_logs
@@ -153,6 +154,9 @@ if __name__ == "__main__":
         # Save the ASN information
         with open(os.path.join(OUTPUT_DIR, "asn_log.bin"), "wb") as f:
             pkl.dump(set_asn_logs, f)
+            
+    print(f"Total {len(set_asn_logs)} ASNs have been logged.")
+    
     # Build the priority list by rank
     # sort the dict_asn_rank by rank
     dict_as_info = {k: v for k, v in sorted(dict_as_info.items(), key=lambda item: item[1]['rank'], reverse=True)}

@@ -30,7 +30,10 @@ def get_asn_from_ip(ip: str):
     """
     Get the ASN from the IP address.
     """
-    response = ASN_READER_2.get(ip)
+    try:
+        response = ASN_READER_2.get(ip)
+    except Exception as e:
+        response = None
     if response is not None:
         return int(response['asn'][2:])
     else:
@@ -53,13 +56,13 @@ def get_ip_from_url(url):
         # 获取所有IP地址（IPv4和IPv6）
         ip_list = socket.getaddrinfo(domain, None)
         # 提取IP地址（排除IPv6的百分号后缀）
-        ips = [ip[4][0].split('%')[0] for ip in ip_list]
+        ips = {ip[4][0].split('%')[0] for ip in ip_list}
         # lock the cache for async
         with CACHE_LOCK:
             for ip in ips:
                 DOMAIN2IP_CACHE[domain] = ip
         return list(set(ips))  # 去重
-    except socket.gaierror:
+    except Exception as e:
         return None
 
 def extract_asn_from_url(url):
