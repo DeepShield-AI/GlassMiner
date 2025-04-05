@@ -50,7 +50,10 @@ def pre_deduplicate_by_url(candidate_url_list: list) -> list:
         if not url.startswith("http"):
             unsupported_cnt += 1
             continue
-        proto, domain = url.split("://")
+        try:
+            proto, domain = url.split("://")
+        except:
+            continue
         domain = domain[:-1] if domain.endswith("/") else domain
         if domain not in preprocessed_lg_page_dict:
             preprocessed_lg_page_dict[domain] = {
@@ -90,9 +93,27 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
     available_lg_page_list = []
     failed_lg_page_list = []
     redirected_lg_page_list = {}
+    
+    lg_url_set = set(lg_url_list)
+    # Allowing continuous download from the breakpoint
+    # check the lg_url_list and remove the already downloaded urls
+    downloaded_count = 0
+    downloaded_lg_filepath_list = os.listdir(SAVE_DIR)
+    filename_to_url_dict = {}
+    for url in lg_url_list:
+        filename = url_to_filename(url)
+        filename_to_url_dict[filename] = url
+    downloaded_set = set()
+    for filename in downloaded_lg_filepath_list:
+        if filename in filename_to_url_dict:
+            downloaded_set.add(filename_to_url_dict[filename])
+    lg_url_list = list(lg_url_set - downloaded_set)
+    downloaded_count = len(downloaded_set)
+    print(f"Already downloaded {downloaded_count} LG pages.")
+    
     # random shuffle the list to avoid being blocked
     random.shuffle(lg_url_list)
-    
+
     os.makedirs(SAVE_DIR, exist_ok=True)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         with requests.Session() as session:

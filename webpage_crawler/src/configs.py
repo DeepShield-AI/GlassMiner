@@ -23,7 +23,8 @@ BASE_URL = "https://cn.bing.com/search?q={}&first={}&FORM=QBRE"
 # crawler configs
 MAX_RETRY = 2
 TIMEOUT = 15
-MAX_WORKERS = 24
+MAX_WORKERS = 32
+NUM_THREADS = 8
 # A list of headers to avoid being blocked
 USER_AGENT_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
@@ -78,4 +79,3 @@ STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
 GENERAL_WEIGHT_THRESHOLD = 0.005 # The threshold of the weight for the useful words
 CLUSTER_WEIGHT_THRESHOLD = 0.015
 CLUSTER_SIZE_THRESHOLD = 4
-NUM_THREADS = 8

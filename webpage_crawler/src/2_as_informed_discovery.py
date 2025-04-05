@@ -109,17 +109,22 @@ def search_for_one_asn_slice(dict_as_info_slice, index=1):
     time.sleep(3 * (index % 10))
     candidate_urls = set()
     for asn, info in dict_as_info_slice.items():
-        orgname = info["organization"]["orgName"]
-        if len(orgname) == 0:
-            keyword = quote_plus(f'AS{asn} looking glass')
-        else:
-            keyword = quote_plus(f'AS{asn} {orgname} looking glass')
-        tmp_urls = search_for_one_keyword(browser, keyword, num=5)
+        try:
+            orgname = info["organization"]["orgName"]
+            if len(orgname) == 0:
+                keyword = quote_plus(f'AS{asn} looking glass')
+            else:
+                keyword = quote_plus(f'AS{asn} {orgname} looking glass')
+            tmp_urls = search_for_one_keyword(browser, keyword, num=5)
+        # Sometimes the driver may be blocked by the search engine, just discard the result
+        except:
+            tmp_urls = []
         if len(tmp_urls) == 0:
             print(f"Cannot find any urls for AS{asn}")
             continue
         else:
             candidate_urls.update(tmp_urls)
+    browser.quit()
     return candidate_urls
 
 def generate_one_asn_slice(dict_queue_asn_rank: deque, slice_size=20):
@@ -185,6 +190,29 @@ if __name__ == "__main__":
         initial_slices = []
         finish_count = 0
         
+        # Continue from the breakpoint by checking the log files to find the last continuous index
+        existing_index = 0
+        existing_urls = set()
+        existing_asn = set()
+        current_path = os.path.join(TMP_DIR, "asn_crawler_log_{}.bin".format(existing_index))
+        while os.path.exists(current_path):
+            with open(current_path, "rb") as f:
+                tmp_res = pkl.load(f)
+                existing_urls.update(tmp_res["url"])
+                existing_asn.update(tmp_res["asn"])
+            useless_slice = generate_one_asn_slice(dict_queue_asn_rank, slice_size=10)
+            if len(useless_slice) == 0:
+                break
+            existing_index += 1
+            current_path = os.path.join(TMP_DIR, "asn_crawler_log_{}.bin".format(existing_index))
+        if existing_index > 0:
+            # Remove the existing ASNs from the dict_queue_asn_rank
+            for asn in existing_asn:
+                if asn in dict_queue_asn_rank:
+                    del dict_queue_asn_rank[asn]
+            new_candidate_urls.update(existing_urls)
+            index = existing_index
+        
         for i in range(NUM_THREADS):
             # Generate the task for one slice of ASNs
             as_info_slice = generate_one_asn_slice(dict_queue_asn_rank, slice_size=10)
@@ -222,9 +250,9 @@ if __name__ == "__main__":
                         del dict_queue_asn_rank[asn]
             
                 # log the results after each task
-                tep_res = {"url": candidate_url, "asn": candidate_asn}
+                tmp_res = {"url": candidate_url, "asn": candidate_asn}
                 with open(os.path.join(TMP_DIR, "asn_crawler_log_{}.bin".format(finish_count)), "wb") as f:
-                    pkl.dump(tep_res, f)
+                    pkl.dump(tmp_res, f)
                 
                 # dynamically generate the task for one slice of ASNs
                 while len(futures) < NUM_THREADS:
