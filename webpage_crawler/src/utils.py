@@ -20,6 +20,7 @@ from configs import *
 cache_manager = DriverCacheManager()
 cache_dir = cache_manager._root_dir
 shutil.rmtree(cache_dir, ignore_errors=True)
+driver_path = ChromeDriverManager().install()
 
 requests.packages.urllib3.disable_warnings()
 context = ssl.create_default_context()
@@ -107,7 +108,7 @@ def init_browser():
     options.add_argument("--headless")
     options.add_argument("--disable-blink-features")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    service = Service(ChromeDriverManager().install())
+    service = Service(driver_path)
     return webdriver.Chrome(service=service, options=options)
 
 def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:

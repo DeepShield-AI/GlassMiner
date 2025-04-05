@@ -130,7 +130,7 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
                         filename = url_to_filename(result['final_url'])
                         filepath = os.path.join(SAVE_DIR, filename)
                         redirected_lg_page_list[result["original_url"]] = result["final_url"]
-                        with open(filepath, 'w', encoding='utf-8') as f:
+                        with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
                             f.write(str(soup))
                         succ_cnt += 1
                         available_lg_page_list.append({
