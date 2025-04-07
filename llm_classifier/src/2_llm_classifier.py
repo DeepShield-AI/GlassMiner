@@ -2,6 +2,7 @@ import time
 import requests
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 
 from configs import *
 
@@ -83,6 +84,8 @@ def direct_multi_classification(data):
         "role": "user"
     })
     result = request_llm_and_get_response(new_base_prompt)
+    if result is None:
+        result = 1
     return result, label, text_path
 
 def direct_binary_classification(data):
@@ -130,7 +133,9 @@ def direct_binary_classification(data):
             "content": html_text,
             "role": "user"
         })
-        result = request_llm_and_get_response(new_base_prompt_2) + 1
+        result = request_llm_and_get_response(new_base_prompt_2)
+    if result is None:
+        result = 1
     return result, label, text_path
 
 def prompted_binary_classification(data):
@@ -181,11 +186,17 @@ def prompted_binary_classification(data):
             "content": html_text,
             "role": "user"
         })
-        result = request_llm_and_get_response(new_base_prompt_2) + 1
+        result = request_llm_and_get_response(new_base_prompt_2)
+        if result is None:
+            result = 1
+        else:
+            result +=1
+    if result is None:
+        result = 1
     return result, label, text_path
 
 
-def test_for_one_method(dataset, method: callable):
+def test_for_one_method(dataset, method: Callable):
     with ThreadPoolExecutor(max_workers=12) as executor:
         future_list = []
         for data in dataset:

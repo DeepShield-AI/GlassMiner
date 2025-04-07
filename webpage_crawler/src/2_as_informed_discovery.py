@@ -4,7 +4,6 @@ import json
 import regex as re
 import tld
 from urllib.parse import quote_plus
-from collections import deque
 
 from configs import *
 from utils import *
@@ -28,7 +27,7 @@ def build_asn_domain_mapping(dict_as_info):
         domain_info = tld.get_tld(website, as_object=True, fail_silently=True)
         if domain_info is None:
             continue
-        fld = domain_info.fld
+        fld = domain_info.fld # type: ignore
         # if the domain is not in the dict_asn_domain_mapping, add it
         if fld not in dict_asn_domain_mapping["fld"]:
             dict_asn_domain_mapping["fld"][fld] = set()
@@ -70,8 +69,8 @@ def get_general_asn_info(dict_asn_domain_mapping):
         # Step 2: Try to match with the secondary domain
         domain_info = tld.get_tld(url, as_object=True, fail_silently=True)
         if domain_info is not None:
-            fld = domain_info.fld
-            domain = domain_info.domain
+            fld = domain_info.fld # type: ignore
+            domain = domain_info.domain # type: ignore
             if fld in dict_asn_domain_mapping["fld"]:
                 asn_set = dict_asn_domain_mapping["fld"][fld]
                 set_asn_logs.update(asn_set)
@@ -127,7 +126,7 @@ def search_for_one_asn_slice(dict_as_info_slice, index=1):
     browser.quit()
     return candidate_urls
 
-def generate_one_asn_slice(dict_queue_asn_rank: deque, slice_size=20):
+def generate_one_asn_slice(dict_queue_asn_rank: dict, slice_size=20):
     """
     Generate the task for one slice of ASNs.
     Remove the selected ASNs from the dict_asn_rank.

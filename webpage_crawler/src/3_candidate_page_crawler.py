@@ -80,7 +80,7 @@ def post_deduplicate_by_url(available_candidate_list: list) -> list:
         unique_url_set.add(url["url"])
     return list(unique_url_set)
 
-def check_availabilty_and_download(lg_url_list: list) -> list:
+def check_availabilty_and_download(lg_url_list: list):
     """
     Concurrently check the availability of LG pages.
     If the target couldn't response, return False.
@@ -154,12 +154,19 @@ def check_availabilty_and_download(lg_url_list: list) -> list:
     return available_lg_page_list, failed_lg_page_list
 
 if __name__ == "__main__":
-    candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "candidate_urls.bin"), "rb"))
+    candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "new_candidate_urls.bin"), "rb"))
     print("Now Start deduplication...")
     dedup_candidate_list = pre_deduplicate_by_url(candidate_list)    
     print(f"Get {len(dedup_candidate_list)} LG pages after deduplication.")
-    
     print("Now Start checking the availability of LG pages...")
+    
+    # For parallel download
+    # index = 0
+    # total_workers = 6
+    # dedup_candidate_list = dedup_candidate_list[index::total_workers]
+    # print(f"Now Start checking the availability of LG pages for {index}th worker.")
+    # print(f"Get {len(dedup_candidate_list)} LG pages after deduplication.")
+    
     available_candidate_list, failed_lg_page_list = check_availabilty_and_download(dedup_candidate_list)    
     available_candidate_list = post_deduplicate_by_url(available_candidate_list)
     

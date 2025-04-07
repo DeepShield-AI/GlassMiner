@@ -23,7 +23,7 @@ BASE_URL = "https://cn.bing.com/search?q={}&first={}&FORM=QBRE"
 # crawler configs
 MAX_RETRY = 2
 TIMEOUT = 15
-MAX_WORKERS = 32
+MAX_WORKERS = 24
 NUM_THREADS = 8
 # A list of headers to avoid being blocked
 USER_AGENT_LIST = [
