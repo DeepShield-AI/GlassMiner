@@ -142,20 +142,18 @@ if __name__ == "__main__":
     candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "new_candidate_urls.bin"), "rb"))
     print("Now Start deduplication...")
     dedup_candidate_list = pre_deduplicate_by_url(candidate_list)    
-    print(f"Get {len(dedup_candidate_list)} LG pages after deduplication.")
-    print("Now Start checking the availability of LG pages...")
+    print(f"Get {len(dedup_candidate_list)} candidate pages after deduplication.")
+    print("Now Start checking the availability of candidate pages...")
     
     # For parallel download
     # index = 0
     # total_workers = 6
     # dedup_candidate_list = dedup_candidate_list[index::total_workers]
-    # print(f"Now Start checking the availability of LG pages for {index}th worker.")
-    # print(f"Get {len(dedup_candidate_list)} LG pages after deduplication.")
+    # print(f"Get {len(dedup_candidate_list)} candidate pages for {index}th worker.")
     
     available_candidate_list, failed_lg_page_list = check_availabilty_and_download(dedup_candidate_list)    
     available_candidate_list = post_deduplicate_by_url(available_candidate_list)
     
-    print("Got {} available LG pages.".format(len(available_candidate_list)))
+    print("Got {} available candidate pages.".format(len(available_candidate_list)))
     with open(os.path.join(OUTPUT_DIR, CANDIDATE_FILE), "w") as f:
         json.dump(available_candidate_list, f, indent=4)
-    print(f"Get {len(available_candidate_list)} available candidate pages.")
