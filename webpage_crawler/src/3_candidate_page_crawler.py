@@ -1,20 +1,4 @@
-# merge the old and new candidate URLs, then crawl all the urls and save the results
-
-# Parse or crawl Looking Glass webpages from all the sources.
-# Different sources have different formats, so we need to write different parsers for each source.
-# Here include the parsers for the following sources:
-# - PeeringDB
-# - BGP4.as
-# - bgplookingglass
-# - traceroute.org
-# - whois.ipinsight.io
-# - looking.house
-
-# Note: Every LG page info entry includes the following fields:
-# - name: The name of the network or organization
-# - url: Looking Glass URL
-# - TODO: Add more fields
-
+# Merge the old and new candidate URLs, then crawl all the urls and save the results
 # Import necessary libraries
 import random
 from urllib.parse import urljoin
@@ -154,6 +138,7 @@ def check_availabilty_and_download(lg_url_list: list):
     return available_lg_page_list, failed_lg_page_list
 
 if __name__ == "__main__":
+    os.makedirs(SAVE_DIR, exist_ok=True)
     candidate_list = pkl.load(open(os.path.join(OUTPUT_DIR, "new_candidate_urls.bin"), "rb"))
     print("Now Start deduplication...")
     dedup_candidate_list = pre_deduplicate_by_url(candidate_list)    
