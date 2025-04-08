@@ -74,9 +74,8 @@ def check_availabilty_and_download(lg_url_list: list):
     succ_cnt = 0
     failed_cnt = 0
     processed_cnt = 0
-    available_lg_page_list = []
-    failed_lg_page_list = []
-    redirected_lg_page_list = {}
+    available_candidate_list = []
+    failed_page_list = []
     
     lg_url_set = set(lg_url_list)
     # Allowing continuous download from the breakpoint
@@ -91,6 +90,10 @@ def check_availabilty_and_download(lg_url_list: list):
     for filename in downloaded_lg_filepath_list:
         if filename in filename_to_url_dict:
             downloaded_set.add(filename_to_url_dict[filename])
+            available_candidate_list.append({
+                "url": filename_to_url_dict[filename],
+                "filename": filename,
+            })
     lg_url_list = list(lg_url_set - downloaded_set)
     downloaded_count = len(downloaded_set)
     print(f"Already downloaded {downloaded_count} LG pages.")
@@ -109,33 +112,20 @@ def check_availabilty_and_download(lg_url_list: list):
                 # update the success and failed count
                 processed_cnt += 1
                 if result['success']:
-                    soup = parse_webpages(result['content'])
-                    if soup is not None:
-                        filename = url_to_filename(result['final_url'])
-                        filepath = os.path.join(SAVE_DIR, filename)
-                        redirected_lg_page_list[result["original_url"]] = result["final_url"]
-                        with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
-                            f.write(str(soup))
-                        succ_cnt += 1
-                        available_lg_page_list.append({
-                            "url": result['final_url'],
-                            "filename": filename,
-                        })
-                    else:
-                        failed_cnt += 1
-                        failed_lg_page_list.append({
-                            "url": result["original_url"], 
-                            "err": "Cannot parse the webpage.",
-                        })
+                    available_candidate_list.append({
+                        "url": result['final_url'],
+                        "filename": filename,
+                    })
+                    succ_cnt += 1
                 else:
                     failed_cnt += 1
-                    failed_lg_page_list.append({
+                    failed_page_list.append({
                         "url": result["original_url"], 
                         "err": str(result["error"]),
                     })
                 if processed_cnt % 500 == 0:
                     print("{} processed, {} success, {} failed".format(processed_cnt, succ_cnt, failed_cnt))
-    return available_lg_page_list, failed_lg_page_list
+    return available_candidate_list, failed_page_list
 
 if __name__ == "__main__":
     os.makedirs(SAVE_DIR, exist_ok=True)

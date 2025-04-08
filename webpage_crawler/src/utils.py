@@ -22,7 +22,7 @@ cache_dir = cache_manager._root_dir
 shutil.rmtree(cache_dir, ignore_errors=True)
 driver_path = ChromeDriverManager().install()
 
-requests.packages.urllib3.disable_warnings()
+requests.packages.urllib3.disable_warnings() # type: ignore
 context = ssl.create_default_context()
 context.set_ciphers('HIGH:!DH:!aNULL')
 
@@ -41,7 +41,8 @@ def get_asn_from_ip(ip: str):
     except Exception as e:
         response = None
     if response is not None:
-        return int(response['asn'][2:])
+        as_str: str = response['asn'] # type: ignore
+        return int(as_str[2:])
     else:
         try:
             response = ASN_READER_1.asn(ip)
@@ -62,7 +63,7 @@ def get_ip_from_url(url):
         # 获取所有IP地址（IPv4和IPv6）
         ip_list = socket.getaddrinfo(domain, None)
         # 提取IP地址（排除IPv6的百分号后缀）
-        ips = {ip[4][0].split('%')[0] for ip in ip_list}
+        ips = {ip[4][0].split('%')[0] for ip in ip_list} # type: ignore
         # lock the cache for async
         with CACHE_LOCK:
             for ip in ips:
@@ -112,37 +113,38 @@ def init_browser():
     return webdriver.Chrome(service=service, options=options)
 
 def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
+    header = BASE_HEADER
+    header["User-Agent"] = random.choice(USER_AGENT_LIST)
     try:
-        header = BASE_HEADER
-        header["User-Agent"] = random.choice(USER_AGENT_LIST)
-        # First send a HEAD request to check content type
-        # head_response = session.head(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-        # content_type = head_response.headers.get('Content-Type', '')
-        # # Skip if it's a file download
-        # if not content_type.startswith(('text/', 'application/json', 'application/xml')):
-        #     return {
-        #         "original_url": url,
-        #         "error": "Skipped file download",
-        #         "content": None,
-        #         "success": False
-        #     }
-        # ignore the https insecure warning, and allow the redirect
-        response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-        response_text = response.text
-        final_url = response.url.rstrip('/')
+        # First send a HEAD request to check content size, discard if > 10 MB
+        head_response = session.head(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
+        content_size = head_response.headers.get('Content-Length', 0)
+        if content_size and int(content_size) > 10 * 1024 * 1024:
+            return {
+                "original_url": url,
+                "error": "Content size too large",
+                "success": False
+            }
+        else:
+            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
+            response_text = response.text
+            final_url = response.url.rstrip('/')            
     except Exception as e:
         if retry_count < MAX_RETRY:
             return fetch_one_page(url, session, retry_count + 1)
         return {
             "original_url": url,
             "error": str(e),
-            "retries": retry_count,
             "success": False
         }
+    soup = parse_webpages(response_text)
+    filename = url_to_filename(final_url)
+    filepath = os.path.join(SAVE_DIR, filename)
+    with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
+        f.write(str(soup))
     return {
         "original_url": url,
         "final_url": final_url,
-        "content": response_text,
         "success": True
     }
 
@@ -245,7 +247,7 @@ def url_to_filename(url: str) -> str:
         filename = filename[:FILE_NAME_MAX_LENGTH]
     return filename
 
-def parse_webpages(webpage) -> BeautifulSoup:
+def parse_webpages(webpage: str) -> BeautifulSoup | None:
     """
     Adaptive parsing of the webpage content by html parser or lxml parser.
     """
