@@ -1,3 +1,4 @@
+import json
 import time
 import requests
 import random
@@ -42,101 +43,20 @@ def request_llm_and_get_response(payload):
         result = None
     return result
 
-def build_dataset(file_path, label):
+def build_dataset(label=None):
     """
     Build the dataset for the LLM classifier.
     """
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    with open(os.path.join(OUTPUT_DIR, "filtered_page_list.json"), "r") as f:
+        filtered_page_list = json.load(f)
+        
     dataset = []
-    for line in lines:
-        text_path = line.strip()
+    for page_info in filtered_page_list:
+        text_path = os.path.join(PROCS_DIR, page_info["filename"])
         with open(text_path, "r", encoding="utf-8") as f:
             data = f.read()
         dataset.append((data, label, text_path))
     return dataset
-
-# 有三种网页：1. 与 LG 无关的网页；2. 与 LG有关但是不直接提供 LG 服务的网页；3. 直接提供LG服务的网页。
-# 我们构造三种不同的LLM分类器，它们调用同样的模型，但是使用不同的提示。
-
-def direct_multi_classification(data):
-    """
-    直接要求模型进行多分类
-    """
-    html_text, label, text_path = data
-    new_base_prompt = {
-        "model": "Pro/deepseek-ai/DeepSeek-V3",
-        "stream": False,
-        "max_tokens": 256,
-        "temperature": 0.5,
-        "top_p": 0.7,
-        "top_k": 50,
-        "frequency_penalty": 0.5,
-        "n": 1,
-        "messages": []
-    }
-    new_base_prompt["messages"].append({
-        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related but do not provide LG service; 3. LG service (ping, traceroute, bgp, etc.) provider. Output 1, 2 or 3 only.",
-        "role": "system"
-    })
-    new_base_prompt["messages"].append({
-        "content": html_text,
-        "role": "user"
-    })
-    result = request_llm_and_get_response(new_base_prompt)
-    if result is None:
-        result = 1
-    return result, label, text_path
-
-def direct_binary_classification(data):
-    """
-    直接要求模型进行两次二分类
-    """
-    html_text, label, text_path = data
-    new_base_prompt_1 = {
-        "model": "Pro/deepseek-ai/DeepSeek-V3",
-        "stream": False,
-        "max_tokens": 256,
-        "temperature": 0.5,
-        "top_p": 0.7,
-        "top_k": 50,
-        "frequency_penalty": 0.5,
-        "n": 1,
-        "messages": []
-    }
-    new_base_prompt_1["messages"].append({
-        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related (includes links to LG or similar network tools). Output 1 or 2 only.",
-        "role": "system"
-    })
-    new_base_prompt_2 = {
-        "model": "Pro/deepseek-ai/DeepSeek-V3",
-        "stream": False,
-        "max_tokens": 256,
-        "temperature": 0.5,
-        "top_p": 0.7,
-        "top_k": 50,
-        "frequency_penalty": 0.5,
-        "n": 1,
-        "messages": []
-    }
-    new_base_prompt_2["messages"].append({
-        "content": "Categorize webpage content: 1. Looking Glass-related but no direct service; 2. LG service (traceroute, ping, bgp, etc.) provider. Output 1 or 2 only.",
-        "role": "system"
-    })
-    new_base_prompt_1["messages"].append({
-        "content": html_text,
-        "role": "user"
-    })
-    result = request_llm_and_get_response(new_base_prompt_1)
-    if result == 2:
-        new_base_prompt_2["messages"].append({
-            "content": html_text,
-            "role": "user"
-        })
-        result = request_llm_and_get_response(new_base_prompt_2)
-    if result is None:
-        result = 1
-    return result, label, text_path
 
 def prompted_binary_classification(data):
     """
@@ -195,9 +115,8 @@ def prompted_binary_classification(data):
         result = 1
     return result, label, text_path
 
-
-def test_for_one_method(dataset, method: Callable):
-    with ThreadPoolExecutor(max_workers=12) as executor:
+def non_batched_classification(dataset, method: Callable):
+    with ThreadPoolExecutor(max_workers=18) as executor:
         future_list = []
         for data in dataset:
             future = executor.submit(method, data)
@@ -208,30 +127,16 @@ def test_for_one_method(dataset, method: Callable):
         for future in as_completed(future_list):
             result, label, text_path = future.result()
             result_log.append((result, label, text_path))
-
-    # save the result to a file
-    with open(os.path.join(TEST_DIR, "result_{}.txt".format(method.__name__)), "w", encoding="utf-8") as f:
-        for result, label, text_path in result_log:
-            f.write(f"{result}\t{label}\t{text_path}\n")
+    return result_log
             
-TEST_DIR = os.path.join(DATA_DIR, "..", "test")
-RELATED_FILE = os.path.join(TEST_DIR, "related.txt")
-UNRELATED_FILE = os.path.join(TEST_DIR, "unrelated.txt")
-SERVICE_FILE = os.path.join(TEST_DIR, "service.txt")
-dataset_1 = build_dataset(UNRELATED_FILE, 1)
-dataset_2 = build_dataset(RELATED_FILE, 2)
-dataset_3 = build_dataset(SERVICE_FILE, 3)
-dataset = dataset_1 + dataset_2 + dataset_3
-# dataset = dataset_2 + dataset_3
+dataset = build_dataset()
 print("Total dataset: ", len(dataset))
-# shuffle the dataset
 random.shuffle(dataset)
 
 print("Start testing...")
-# Test the three classification methods parallelly, max QPS = 100
-test_for_one_method(dataset, direct_multi_classification)
-print("Direct multi classification finished.")
-test_for_one_method(dataset, direct_binary_classification)
-print("Direct binary classification finished.")
-test_for_one_method(dataset, prompted_binary_classification)
+res_log = non_batched_classification(dataset, prompted_binary_classification)
 print("Prompted binary classification finished.")
+
+# save the result to file
+with open(os.path.join(OUTPUT_DIR, "classification_result.json"), "w") as f:
+    json.dump(res_log, f, indent=4)

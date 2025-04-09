@@ -8,3 +8,4 @@ test.*
 */output
 **/downloaded
 **/test
+**/tmp

@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 import regex as re
 import warnings
 import html2text
@@ -16,6 +16,19 @@ class CustomHTMLParser(html2text.HTML2Text):
         self.ignore_links = False
         self.single_line_break = True
         self.body_width = 0
+
+def url_to_filename(url: str) -> str:
+    """
+    Convert the URL to a filename by replacing the special characters.
+    """
+    filename = url.split('://')[1]    
+    # remove the tailing slash, and only keep the first 40 characters
+    if filename.endswith('/'):
+        filename = filename[:-1]
+    filename = filename.replace('/', '_')
+    if len(filename) > FILE_NAME_MAX_LENGTH:
+        filename = filename[:FILE_NAME_MAX_LENGTH]
+    return filename
 
 def contain_filter_words(contents: str) -> bool:
     """
@@ -49,8 +62,12 @@ def is_symbols(token):
     return False
 
 def collect_text_in_order(html_str):
+    if len(html_str) > 500000:
+        return None
     # Part one: Extract text in input / meta, change them into direct text
     soup = parse_webpages(html_str)
+    if soup is None:
+        return None
     # Find all input with "placeholder" or "value" attributes
     input_tags = soup.find_all("input")
     for input_tag in input_tags:

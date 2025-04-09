@@ -9,7 +9,7 @@ SAVE_DIR = os.path.join(DATA_DIR, "downloaded")
 PROCS_DIR = os.path.join(OUTPUT_DIR, "processed")
 LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
 
-AVAI_FILE = "available_lg_page_list.json"
+CAND_FILE = "candidate_lg_page_list.json"
 
 SIMPLE_FILETER_WORDS = {
     "looking glass",
@@ -22,7 +22,7 @@ SIMPLE_FILETER_WORDS = {
     "trace",
     "mtr"
 }
-
+FILE_NAME_MAX_LENGTH = 200
 PTN_CHAR = r'^[^\p{L}\u4e00-\u9fff\u0400-\u04FF]*$'
 PTN_IP = r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b'
 PTN_KEYWORD = re.compile(r'\b(?:' + '|'.join(SIMPLE_FILETER_WORDS) + r')\b', re.IGNORECASE)
