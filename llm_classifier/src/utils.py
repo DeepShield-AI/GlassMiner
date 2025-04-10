@@ -1,7 +1,10 @@
+import random
+import time
 from bs4 import BeautifulSoup
 import regex as re
 import warnings
 import html2text
+import requests
 
 from configs import *
 
@@ -117,3 +120,141 @@ def collect_text_in_order(html_str):
             # replace the original match with the first group
             text = text.replace(f"[{match[0]}]({match[1]})", match[0])
     return text.strip()
+
+API_HEADER = {
+    "Authorization": "Bearer sk-rtuqjzffquusvhiehxfoxzloijofreqgtednlonthmfsotsi",
+    "Content-Type": "application/json"
+}
+API_URL = "https://api.siliconflow.cn/v1/chat/completions"
+
+
+base_prompt = {
+    "model": "Pro/deepseek-ai/DeepSeek-V3",
+    "stream": False,
+    "max_tokens": 256,
+    "temperature": 0.5,
+    "top_p": 0.7,
+    "top_k": 50,
+    "frequency_penalty": 0.5,
+    "n": 1,
+    "messages": []
+}
+
+def request_llm_and_get_response(payload):
+    """
+    Request the LLM and get the response.
+    """
+    retry_count = 0
+    res = None
+    while res is None:
+        try:
+            response = requests.request("POST", API_URL, json=payload, headers=API_HEADER)
+            response_dict = response.json()
+            content = response_dict["choices"][0]["message"]["content"]
+            # find the first number in the result
+            res = re.search(r"\d+", content)
+        except Exception as e:
+            res = None
+            retry_count += 1
+            time.sleep(retry_count)
+            if retry_count > 5:
+                break
+    if res:
+        pred = int(res.group())
+    else:
+        pred = None
+    return pred
+
+def prompted_binary_classification(html_text):
+    """
+    通过提示模型进行两次二分类
+    """
+    new_base_prompt_1 = {
+        "model": "Pro/deepseek-ai/DeepSeek-V3",
+        "stream": False,
+        "max_tokens": 256,
+        "temperature": 0.5,
+        "top_p": 0.7,
+        "top_k": 50,
+        "frequency_penalty": 0.5,
+        "n": 1,
+        "messages": []
+    }
+    new_base_prompt_1["messages"].append({
+        "content": "Categorize webpage content: 1. Unrelated; 2. Looking Glass-related (links to LG or similar network tools). Example A: ```Innovative Technological Solutions ### Network Tools * Network Status * Looking Glass * DNS Lookup * IP Lookup * WhoIs``` contains word Looking Glass, but no related links -> classify as 1. Example B: ```Welcome to the webserver of RLP-NET. The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains link to traceroute server -> classify as 2. Output 1 or 2 only.",
+        "role": "system"
+    })
+    
+    new_base_prompt_2 = {
+        "model": "Pro/deepseek-ai/DeepSeek-V3",
+        "stream": False,
+        "max_tokens": 256,
+        "temperature": 0.5,
+        "top_p": 0.7,
+        "top_k": 50,
+        "frequency_penalty": 0.5,
+        "n": 1,
+        "messages": []
+    }
+    
+    new_base_prompt_2["messages"].append({
+        "content": """Categorize webpage content: 1. Looking Glass related (link to LG or similar webpages) but no direct service; 2. Direct LG service. If it allows commands (traceroute, ping, etc.), selection of parameters (addresses, etc.), it should be class 2. If it is a whois or network information page or only provide links to LG or similar services, it should be class 1. The input starts with its url, and hyperlinks are presented as `[text](link)`.
+        Example A: ```[Ping Testi](https://atlantisnet.com.tr/internet-ping-testi/) *  ##### Yardım * [ Atlantis Looking Glass ](https://lg.atlantisnet.com.tr/)``` All commands are links to other pages but no direct service -> class 1; 
+        Example B: ```The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains command keywords but only links -> class 1; 
+        Example C: ```Web Technologies Cheat Sheets ## Online Traceroute Your IP address is 107.172.231.79 IP to traceroute to : [Input]: TYPE: [Input]:ICMP [Input]:TCP``` provide traceroute service -> class 2; 
+        Example D: ```[Meta]:og:title:INS BGP looking glass [Meta]:description:International Network Services Network Looking Glass [Meta]:hyperglass * ## FRA Marseille, MRS1 FM * ## ZAF Durban, DMO ZD``` contains `hyperglass` from template LG webpage. -> class 2.
+        Example E: ```www.ip2location.com:...``` or ``` www.peeringdb.com: ...``` are likely information pages -> class 1.
+        Output 1 or 2 only.""",
+        "role": "system"
+    })
+    
+    new_base_prompt_1["messages"].append({
+        "content": html_text,
+        "role": "user"
+    })
+    result = request_llm_and_get_response(new_base_prompt_1)
+    if result == 2:
+        new_base_prompt_2["messages"].append({
+            "content": html_text,
+            "role": "user"
+        })
+        result = request_llm_and_get_response(new_base_prompt_2)
+        if result is not None:
+            result += 1
+    return result
+
+def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
+    header = BASE_HEADER
+    header["User-Agent"] = random.choice(USER_AGENT_LIST)
+    try:
+        # First send a HEAD request to check content size, discard if > 10 MB
+        head_response = session.head(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
+        content_size = head_response.headers.get('Content-Length', 0)
+        if content_size and int(content_size) > 10 * 1024 * 1024:
+            return {
+                "original_url": url,
+                "error": "Content size too large",
+                "success": False
+            }
+        else:
+            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
+            response_text = response.text
+            final_url = response.url.rstrip('/')            
+    except Exception as e:
+        if retry_count < MAX_RETRY:
+            return fetch_one_page(url, session, retry_count + 1)
+        return {
+            "original_url": url,
+            "error": str(e),
+            "success": False
+        }
+    soup = parse_webpages(response_text)
+    filename = url_to_filename(final_url)
+    filepath = os.path.join(SAVE_DIR, filename)
+    with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
+        f.write(str(soup))
+    return {
+        "original_url": url,
+        "final_url": final_url,
+        "success": True
+    }

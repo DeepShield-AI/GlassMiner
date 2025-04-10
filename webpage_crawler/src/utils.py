@@ -262,13 +262,3 @@ def parse_webpages(webpage: str) -> BeautifulSoup | None:
         print(f"Error parsing webpage: {e}")
         return None
     return soup
-
-def remove_script_and_style(soup: BeautifulSoup):
-    """
-    Using BeautifulSoup to remove all the script style tages
-    """
-    for script in soup.find_all('script'):
-        script.decompose()
-    for style in soup.find_all('style'):
-        style.decompose()
-    return soup
