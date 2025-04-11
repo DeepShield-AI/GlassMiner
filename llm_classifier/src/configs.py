@@ -65,7 +65,8 @@ URL_FILTER_WORDS = {
     "ping"
 }
 
-MAX_WORKERS = 8
+MAX_WORKERS = 48
+NUM_THREADS = 8
 IGNORE_THRESHOLD = 3 # The text with characters less than this threshold will be ignored
 TEXT_LEN_MAX_THRESHOLD = 200  # The threshold of the text length, remove the text if it's too long
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short

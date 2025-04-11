@@ -83,6 +83,10 @@ if __name__ == "__main__":
         # load the verified_lg_info
         unique_verified_pages = json.load(open(os.path.join(DATA_DIR, UNIQ_FILE), "r"))
         verified_lg_info = []
+        
+        # Test: filter out the page with "he.net/AS" in URL
+        unique_verified_pages = [lg_info for lg_info in unique_verified_pages if "he.net/AS" not in lg_info["url"]]
+        
         count = 0
         for lg_info in unique_verified_pages:
             url = lg_info["url"]

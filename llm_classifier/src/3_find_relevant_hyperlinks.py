@@ -29,7 +29,10 @@ def get_candidate_urls_from_related(html_txt: str):
         a_tags = parent_tag.find_all("a", href=True)
         for a in a_tags:
             link = a['href'].rstrip("/")
-            link = urljoin(url, link)
+            try:
+                link = urljoin(url, link)
+            except:
+                continue
             candidate_urls.add(link)
     return candidate_urls
 
@@ -68,29 +71,80 @@ if __name__ == "__main__":
     
     with open(os.path.join(OUTPUT_DIR, RELATED_FILE), "r") as f:
         related_page_list = json.load(f)
-    with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "r") as f:
-        lg_page_list = json.load(f)        
-    set_candidate_urls = set()
+    print(f"{len(related_page_list)} related pages.")
     
+    with open(os.path.join(DATA_DIR, UNIQ_FILE), "r") as f:
+        old_lg_page_list = json.load(f)
+    print(f"{len(old_lg_page_list)} old LG pages.")
+    
+    with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "r") as f:
+        lg_page_list = json.load(f)
+    print(f"{len(lg_page_list)} LG pages.")
+    set_candidate_urls = set()
+        
+    count = 0
     for page_info in related_page_list:
+        count += 1
+        if count % 500 == 0:
+            print(f"{count} webpages processed.")
         url = page_info["url"]
         filename = page_info["filename"]
         filepath = os.path.join(RELATED_DIR, filename)
-        html_str = open(filepath, "r", encoding="utf-8").read()
+        try:
+            html_str = open(filepath, "r", encoding="utf-8").read()
+        except:
+            print(f"{filepath} not found.")
+            continue
         urls = get_candidate_urls_from_html(html_str, is_lg=False)
         urls = urls - set_crawled_url
         set_candidate_urls.update(urls)
         set_crawled_url.update(urls)
         
     for lg_info in lg_page_list:
+        count += 1
+        if count % 500 == 0:
+            print(f"{count} webpages processed.")
         url = lg_info["url"]
         filename = lg_info["filename"]
         filepath = os.path.join(SAVE_DIR, filename)
-        html_str = open(filepath, "r", encoding="utf-8").read()
+        try:
+            html_str = open(filepath, "r", encoding="utf-8").read()
+        except:
+            print(f"{filepath} not found.")
+            continue
         urls = get_candidate_urls_from_html(html_str, is_lg=True)
         urls = urls - set_crawled_url
         set_candidate_urls.update(urls)
         set_crawled_url.update(urls)
+    
+    # old uniq file
+    for lg_info in old_lg_page_list:
+        count += 1
+        if count % 500 == 0:
+            print(f"{count} webpages processed.")
+        url = lg_info["url"]
+        filename = lg_info["filename"]
+        filepath = os.path.join(SAVE_DIR, filename)
+        try:
+            html_str = open(filepath, "r", encoding="utf-8").read()
+        except:
+            print(f"{filepath} not found.")
+            continue
+        urls = get_candidate_urls_from_html(html_str, is_lg=True)
+        urls = urls - set_crawled_url
+        set_candidate_urls.update(urls)
+        set_crawled_url.update(urls)
+    
+    list_candidate_urls = []
+    for url in set_candidate_urls:
+        try:
+            filename = url_to_filename(url)
+        except:
+            continue
+        list_candidate_urls.append({
+            "url": url,
+            "filename": filename
+        })
     
     print("Total candidate urls: ", len(set_candidate_urls))
     with open(os.path.join(OUTPUT_DIR, "new_candidate_urls.bin"), "wb") as f:

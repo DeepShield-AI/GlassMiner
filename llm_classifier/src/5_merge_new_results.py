@@ -18,11 +18,11 @@ def build_new_dataset(label=None):
         filtered_page_list = json.load(f)
     set_finished_url = set()
     # Filter out all the finished samples, each line is an url
-    with open(os.path.join(OUTPUT_DIR, "new_tmp_logs.txt"), "r") as f:
+    with open(os.path.join(OUTPUT_DIR, "tmp_logs.txt"), "r") as f:
         lines = f.readlines()
         for line in lines:
             line = line.strip()
-            url, _, _ = line.split(",")
+            url, _, _ = line.split("\t")
             set_finished_url.add(url)
 
     dataset = []
@@ -42,12 +42,12 @@ def non_batched_classification(dataset: list, method: Callable) -> pd.DataFrame:
     start_time = time.time()
     task_idx = 0
         
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
         future_set = set()
         result_log = []
         future_mapping = {}
         # Initial tasks
-        for i in range(MAX_WORKERS):
+        for i in range(NUM_THREADS):
             data = dataset[task_idx]
             html_text, label, url, text_path = data
             task_idx += 1
@@ -72,7 +72,7 @@ def non_batched_classification(dataset: list, method: Callable) -> pd.DataFrame:
                     result_log.append((result, future_info[1], future_info[2], future_info[3]))
                     
                     with open(os.path.join(OUTPUT_DIR, "tmp_logs.txt"), "a") as f:
-                        f.write("{},{},{}\n".format(future_info[2], future_info[3], result))
+                        f.write("{}\t{}\t{}\n".format(future_info[2], future_info[3], result))
                     
                     finish_count += 1
                     if finish_count % 100 == 0:

@@ -45,12 +45,12 @@ def non_batched_classification(dataset: list, method: Callable) -> pd.DataFrame:
     start_time = time.time()
     task_idx = 0
         
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
         future_set = set()
         result_log = []
         future_mapping = {}
         # Initial tasks
-        for i in range(MAX_WORKERS):
+        for i in range(NUM_THREADS):
             data = dataset[task_idx]
             html_text, url, text_path = data
             task_idx += 1
