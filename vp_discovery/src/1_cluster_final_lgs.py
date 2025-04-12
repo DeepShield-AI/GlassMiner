@@ -34,20 +34,20 @@ def calculate_structure_similarity(verified_lg_info):
                 print(f"{pair_count} pairs of webpages have been calculated, time elapsed: {time.time() - start_time:.2f}s")
     return mat_sim
 
-def cluster_webpages_by_similarity(indices, mat_sim, threshold, abs_threshold):
+def cluster_webpages_by_similarity(verified_lg_info, mat_sim, threshold, abs_threshold):
     """
     For each webpage i, find its most similar webpage j (j > i) that has similarity > threshold,
     and merge them into the same cluster.
     """                
     print(f"Clustering webpages with threshold {threshold}...")
-    clusters = DisjointSet({i : i for i in range(len(indices))})
+    clusters = DisjointSet({i : i for i in range(len(verified_lg_info))})
     
     # For each webpage i, find its most similar webpage j
-    for i in range(len(indices)):
+    for i in range(len(verified_lg_info)):
         max_sim = 0
         max_j = -1
         # Find the most similar webpage j among remaining webpages
-        for j in range(i+1, len(indices)):
+        for j in range(i+1, len(verified_lg_info)):
             # For each webpage with similarity > abs_threshold, directly merge them
             if mat_sim[i][j] > abs_threshold:
                 clusters.union(i, j)
@@ -64,7 +64,7 @@ def cluster_webpages_by_similarity(indices, mat_sim, threshold, abs_threshold):
     for idx, cluster in clusters.itersets(with_canonical_elements=True):
         cluster_dict[idx] = []
         for i in cluster:
-            url = verified_lg_info[indices[i]]["url"]
+            url = verified_lg_info[i]["url"]
             url2cluster[url] = idx
             cluster_dict[idx].append(url)            
     # sort by the number of webpages in the cluster
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             pkl.dump(mat_sim_structure, open(os.path.join(LOGS_DIR, SIM_FILE.format(0)), "wb"))
         
         clusters, url2cluster = cluster_webpages_by_similarity(
-            [i for i in range(len(verified_lg_info))], mat_sim_structure, 
+            verified_lg_info, mat_sim_structure, 
             threshold=STRUC_THRESHOLD, abs_threshold=STRUC_THRESHOLD + 0.1
         )
         

@@ -19,7 +19,7 @@ DUP_FILE = "dict_hash_contents.json"
 
 # crawler configs
 MAX_RETRY = 2
-TIMEOUT = 15
+TIMEOUT = 30
 MAX_WORKERS = 24
 # A list of headers to avoid being blocked
 USER_AGENT_LIST = [
@@ -73,3 +73,28 @@ TEXT_LEN_MAX_THRESHOLD = 50  # The threshold of the text length, remove the text
 TEXT_LEN_MIN_THRESHOLD = 10  # The threshold of the text length, remove the text if it's too short
 CORPUS_THRESHOLD = 0.4  # The threshold of the Jaccard similarity for clustering
 STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
+
+# 定义主机信息结构
+HOSTS = [
+    {
+        "public_ip": "115.29.214.24",
+        "private_ip": "172.18.93.141",
+        "username": "root",
+        "pcap_path": "~/0_receive.pcap",
+        "local_path": "0_receive.pcap",
+    },
+    {
+        "public_ip": "8.148.231.184",
+        "private_ip": "172.20.147.16",
+        "username": "root",
+        "pcap_path": "~/1_receive.pcap",
+        "local_path": "1_receive.pcap",
+    },
+    {
+        "public_ip": "101.201.39.233",
+        "private_ip": "172.31.196.251",
+        "username": "root",
+        "pcap_path": "~/2_receive.pcap",
+        "local_path": "2_receive.pcap",
+    },
+]

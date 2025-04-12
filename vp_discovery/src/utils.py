@@ -1,4 +1,3 @@
-import time
 from bs4 import BeautifulSoup
 import warnings
 import random
@@ -10,6 +9,11 @@ import html2text
 from difflib import SequenceMatcher
 import zstandard as zstd
 import io
+import pickle as pkl
+import geoip2.database
+from string import digits
+import reverse_geocoder
+import pytricia
 
 from configs import *
 
@@ -74,7 +78,7 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
                     response_text = decompressed.decode("utf-8")
             else:
                 response_text = response.text
-            final_url = response.url.rstrip('/')         
+            final_url = response.url.rstrip('/')
     except Exception as e:
         if retry_count < MAX_RETRY:
             return fetch_one_page(url, session, retry_count + 1)
@@ -193,3 +197,176 @@ def sequence_similarity(html_1: str, html_2: str):
     comparator.set_seq1(html_1.tags)
     comparator.set_seq2(html_2.tags)
     return comparator.ratio()
+
+
+# =================== Geolocation Utility =================== #
+GEOLITE_READER = geoip2.database.Reader(os.path.join(DATA_DIR, "GeoLite.mmdb"))                      
+
+def split_word(name: str):
+    name_split = set()
+    # remove digits
+    table = str.maketrans('', '', digits)
+    name = name.translate(table).lower()
+
+    if name.count(',') > 0 and '(' not in name:
+        # For '-', there are two choices, one is to remove it, the other is to replace it with ','
+        new_name = name.replace('-', '')
+        name_split.update([x.replace(' ', '') for x in new_name.split(',')])
+        new_name = name.replace('-', ',')
+        name_split.update([x.replace(' ', '') for x in new_name.split(',')])
+    # check format 'xx (AS number)'
+    elif '(as' in name:
+        pass
+    else:
+        name = name.replace('(', ' ')
+        name = name.replace(')', ' ')
+        name = name.replace(',', ' ')
+        name = name.replace('，', ' ')
+        name = name.replace('/', ' ')
+        name_split.update(name.replace('-',' ').split())
+    return name_split
+
+def check_raw_word(raw_word):
+    raw_word = raw_word.lower()
+
+    # check if the word is a city name with space
+    for name in dict_hasspace_city:
+        if name in raw_word:
+            return dict_hasspace_city[name]
+
+    set_oneword = split_word(raw_word)
+    candidates = list()
+    for word in set_oneword:
+        # check if the word is a city name
+        if word in dict_iata_code:
+            if dict_iata_code[word][1] in set_oneword:
+                candidates.append(dict_iata_code[word])
+            if 'ixp' in set_oneword:
+                candidates.append(dict_iata_code[word])
+
+        # check if the word is a city name
+        if word in dict_city_by_name:
+            candidates.append(dict_city_by_name[word])
+   
+    # If there are two candidates, check if they are the same city
+    if len(candidates) == 2:
+        _, _, admin_0, city_0, _  = candidates[0]
+        _, _, admin_1, city_1, _  = candidates[1]
+        if city_0 == admin_1:
+            return candidates[1]
+        if city_1 == admin_0:
+            return candidates[0]    
+    # if there are more than two candidates, check if they are the same city
+    if len(candidates) > 0:
+        coor_candidates = [x[0] for x in candidates]
+        for cdx_1 in range(0, len(coor_candidates)):
+            for cdx_2 in range(cdx_1 + 1, len(coor_candidates)):
+                if abs(coor_candidates[cdx_1][0] - coor_candidates[cdx_2][0]) > 0.5 or \
+                    abs(coor_candidates[cdx_1][1] - coor_candidates[cdx_2][1]) > 0.5:
+                    return None
+        return candidates[0]
+    elif len(candidates) == 0:
+        return None
+
+def normalize_geolocation(coord):
+    """
+    Using reverse_geocoder to normalize the geolocation.
+    """
+    try:
+        result = reverse_geocoder.search(coord, mode=1)
+    except Exception as e:
+        print(f"Error normalizing geolocation {coord}: {e}")
+        return None
+    if result:
+        # get the country code and city
+        country_code = result[0]['cc']
+        city = result[0]['name']
+        latitude = result[0]['lat']
+        longitude = result[0]['lon']
+        return {
+            "country_code": country_code,
+            "city": city,
+            "latitude": latitude,
+            "longitude": longitude
+        }
+    
+
+def geolocate_ip(ip_addr):
+    """
+    Geolocate the IP address using an external API.
+    Need country code, city only, 
+    """
+    try:
+        response = GEOLITE_READER.city(ip_addr)
+    except:
+        return None
+    raw_lat = response.location.latitude
+    raw_lon = response.location.longitude
+    raw_coord = (raw_lat, raw_lon)
+    location = None
+    if raw_coord:
+        location = normalize_geolocation(raw_coord)
+    return location
+
+dict_city_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_city_by_name.bin"), "rb"))
+dict_hasspace_city = pkl.load(open(os.path.join(DATA_DIR, "dict_hasspace_city.bin"), "rb"))
+dict_iata_code = pkl.load(open(os.path.join(DATA_DIR, "dict_iata_code.bin"), "rb"))
+dict_city_alter_name = pkl.load(open(os.path.join(DATA_DIR, "dict_city_alter_name.bin"), "rb"))
+def geolocate_hint(hint):
+    """
+    Geolocate the hint using an external API.
+    """
+    geo_info = check_raw_word(hint)
+    location = None
+    if geo_info:
+        coord = geo_info[0]
+        location = normalize_geolocation(coord)
+    return location
+
+def geolocate_one_vp(vp_info):
+    """
+    Geolocate one VP by IP or Geo-Hint.
+    """
+    location = {}
+    ip_addr = vp_info["ip_addr"]
+    is_hint = False
+    if ip_addr:
+        # Geolocate by IP
+        location = geolocate_ip(ip_addr)
+    else:
+        # Geolocate by Geo-Hint
+        hint = vp_info["hint"]
+        if hint:
+            location = geolocate_hint(hint)
+            if location:
+                is_hint = True
+    return location, is_hint
+
+BOGON_NETWORKS = [
+    "0.0.0.0/8",
+    "10.0.0.0/8",
+    "100.64.0.0/10",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "172.16.0.0/12",
+    "192.0.0.0/24",
+    "192.0.2.0/24",
+    "192.168.0.0/16",
+    "198.18.0.0/15",
+    "198.51.100.0/24",
+    "203.0.113.0/24",
+    "224.0.0.0/4",
+    "240.0.0.0/4",
+    "255.255.255.255/32",
+]
+PT = None
+def is_bogon(ip_str):
+    global PT
+    if PT is None:
+        PT = pytricia.PyTricia()
+        for net in BOGON_NETWORKS:
+            PT.insert(net, True)
+    try:
+        return PT.has_key(ip_str)
+    except ValueError:
+        return False

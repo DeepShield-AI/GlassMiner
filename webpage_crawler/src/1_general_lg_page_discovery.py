@@ -127,7 +127,6 @@ def fetch_one_piece_of_webpages(list_terms, thread_index):
 
 if __name__ == "__main__":
     dict_city_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_city_by_name.bin"), "rb"))
-    # dict_asn_by_name = pkl.load(open(os.path.join(DATA_DIR, "dict_asn_by_name.bin"), "rb"))
     set_general_keywords, dict_set_cluster_keywords = purify_the_corpus(dict_city_by_name)
     # Build the search terms for the search engine
     search_terms = build_search_terms(dict_set_cluster_keywords, set_general_keywords)
