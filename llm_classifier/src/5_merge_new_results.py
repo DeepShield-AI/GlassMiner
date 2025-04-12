@@ -1,9 +1,9 @@
+import hashlib
 import json
-import time
 import shutil
+import time
 import pandas as pd
 import pickle as pkl
-import random
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from typing import Callable
 
@@ -136,3 +136,66 @@ if __name__ == "__main__":
         })
     with open(os.path.join(OUTPUT_DIR, UNIQ_FILE), "w") as f:
         json.dump(unique_lg_page_list, f, indent=2)
+        
+    # merge with the seed pages and de-duplication
+    total_file_path = os.path.join(OUTPUT_DIR, TOTAL_FILE)
+    # Load the seed pages and the unique pages, merge them
+    original_clusters = json.load(open(os.path.join(DATA_DIR, "hybrid_clusters.json"), "r")) 
+    # Merge the two lists
+    set_url = set()
+    for lg_info in unique_lg_page_list:
+        url = lg_info["url"]
+        set_url.add(url)
+    for cluster_id, cluster in original_clusters.items():
+        set_url.update(cluster)
+    total_lg_page_list = [{"url": url, "filename": url_to_filename(url)} for url in set_url]
+    # Write back to file
+    with open(total_file_path, "w") as f:
+        json.dump(total_lg_page_list, f, indent=2)
+    print(f"Total {len(total_lg_page_list)} unique URLs.")
+    
+    # de-duplication
+    hash_to_urls = {}
+    page_contents = {}
+    # Calculate hash for each page
+    count = 0
+    for lg_info in total_lg_page_list:
+        count += 1
+        if count % 500 == 0:
+            print(f"Processed {count} pages.")
+        try:
+            with open(os.path.join(PROCS_DIR, lg_info["filename"]), "r") as f:
+                content = f.read()
+        except:
+            try:
+                with open(os.path.join(SAVE_DIR, lg_info["filename"]), "r") as f:
+                    html_text = f.read()
+            except:
+                print("download the file again")
+                with requests.Session() as session:
+                    fetch_one_page(lg_info["url"], session, 0)
+                with open(os.path.join(SAVE_DIR, lg_info["filename"]), "r") as f:
+                    html_text = f.read()
+            content = collect_text_in_order(html_text)
+            if not content:
+                print(f"Error: {lg_info['filename']} is empty.")
+                continue
+            with open(os.path.join(PROCS_DIR, lg_info["filename"]), "w") as f:
+                f.write(content)
+                
+        page_contents[lg_info["url"]] = content
+        
+        hash_val = hashlib.md5(content.encode()).hexdigest()
+        if hash_val not in hash_to_urls:
+            hash_to_urls[hash_val] = []
+        hash_to_urls[hash_val].append(lg_info["url"])
+
+    # Select shortest non-IP URL for each hash
+    unique_urls = {min(urls, key=lambda url: (bool(re.search(r'\b([0-9]{1,3}\.){3}[0-9]{1,3}\b', url)), len(url)))
+                for urls in hash_to_urls.values()}
+    
+    total_lg_page_list = [{"url": url, "filename": url_to_filename(url)} for url in unique_urls]
+    print(f"Total {len(total_lg_page_list)} unique URLs after de-duplication.")
+    # Write back to file
+    with open(total_file_path, "w") as f:
+        json.dump(total_lg_page_list, f, indent=2)

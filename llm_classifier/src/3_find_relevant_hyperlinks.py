@@ -9,7 +9,7 @@ import pickle as pkl
 from configs import *
 from utils import *
 
-def get_candidate_urls_from_related(html_txt: str):
+def get_candidate_urls_from_related(html_txt:str, url:str):
     """
     Extract the candidate URLs from the related page.
     """
@@ -55,11 +55,11 @@ def get_candidate_urls_from_lg(html_txt:str):
                 break
     return urls
 
-def get_candidate_urls_from_html(html_txt:str, is_lg=False):
+def get_candidate_urls_from_html(html_txt:str, url:str, is_lg=False):
     if is_lg:
         urls = get_candidate_urls_from_lg(html_txt)
     else:
-        urls = get_candidate_urls_from_related(html_txt)
+        urls = get_candidate_urls_from_related(html_txt, url)
     # filter out all the shown urls
     return urls
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
         except:
             print(f"{filepath} not found.")
             continue
-        urls = get_candidate_urls_from_html(html_str, is_lg=False)
+        urls = get_candidate_urls_from_html(html_str, url, is_lg=False)
         urls = urls - set_crawled_url
         set_candidate_urls.update(urls)
         set_crawled_url.update(urls)
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         except:
             print(f"{filepath} not found.")
             continue
-        urls = get_candidate_urls_from_html(html_str, is_lg=True)
+        urls = get_candidate_urls_from_html(html_str, url, is_lg=True)
         urls = urls - set_crawled_url
         set_candidate_urls.update(urls)
         set_crawled_url.update(urls)

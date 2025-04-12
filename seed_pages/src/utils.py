@@ -8,6 +8,8 @@ import regex as re
 from math import log2
 from difflib import SequenceMatcher
 from niteru.html_parser import parse_html
+import zstandard as zstd
+import io
 
 from configs import *
 
@@ -32,7 +34,16 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
         header = BASE_HEADER
         header["User-Agent"] = random.choice(USER_AGENT_LIST)
         # ignore the https insecure warning, and allow the redirect
-        response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
+        response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True, stream=True)
+        # check if the content encoding is zstandard
+        if response.headers.get('Content-Encoding') == 'zstd':
+            # decompress the content
+            dctx = zstd.ZstdDecompressor()
+            with dctx.stream_reader(io.BytesIO(response.raw.read())) as reader:
+                decompressed = reader.read()
+                response_text = decompressed.decode("utf-8")
+        else:
+            response_text = response.text
 
     except Exception as e:
         if retry_count < MAX_RETRY:
@@ -48,7 +59,7 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
     return {
         "original_url": url,
         "final_url": final_url,
-        "content": response.text,
+        "content": response_text,
         "success": True
     }
 
@@ -178,16 +189,15 @@ class StructuralComparator(SequenceMatcher):
     
     def ratio(self) -> float:
         matches = sum(triple[-1] for triple in self.get_matching_blocks())
-        min_len = min(len(self.a), len(self.b))
-        log_max_len = log2(max(len(self.a), len(self.b)))
-        return 1.0 * matches / (min_len + log_max_len)
+        modified_len = min(len(self.a), len(self.b)) + log2(max(len(self.a), len(self.b)))
+        if modified_len == 0:
+            return 0
+        return 1.0 * matches / modified_len
 
 def sequence_similarity(html_1: str, html_2: str):
     comparator = StructuralComparator()
-    parsed1 = parse_html(html_1)
-    parsed2 = parse_html(html_2)
-    comparator.set_seq1(parsed1.tags)
-    comparator.set_seq2(parsed2.tags)
+    comparator.set_seq1(html_1.tags)
+    comparator.set_seq2(html_2.tags)
     return comparator.ratio()
 
 def jaccard_similarity(shingles1, shingles2):

@@ -15,6 +15,8 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.core.driver_cache import DriverCacheManager
 import shutil
+import zstandard as zstd
+import io
 
 from configs import *
 cache_manager = DriverCacheManager()
@@ -126,9 +128,17 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
                 "success": False
             }
         else:
-            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-            response_text = response.text
-            final_url = response.url.rstrip('/')            
+            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True, stream=True)
+            # check if the content encoding is zstandard
+            if response.headers.get('Content-Encoding') == 'zstd':
+                # decompress the content
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(io.BytesIO(response.raw.read())) as reader:
+                    decompressed = reader.read()
+                    response_text = decompressed.decode("utf-8")
+            else:
+                response_text = response.text
+            final_url = response.url.rstrip('/')
     except Exception as e:
         if retry_count < MAX_RETRY:
             return fetch_one_page(url, session, retry_count + 1)

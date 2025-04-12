@@ -8,6 +8,7 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output")
 PROCS_DIR = os.path.join(OUTPUT_DIR, "processed")
 LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
 
+TOTAL_FILE = "total_lg_page_list.json"
 AVAI_FILE = "available_lg_page_list.json"
 FAIL_FILE = "failed_lg_page_list.json"
 UNIQ_FILE = "unique_lg_page_list.json"
@@ -33,7 +34,7 @@ USER_AGENT_LIST = [
 ]
 BASE_HEADER = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
     "Cache-Control": "max-age=0",
     "Connection": "keep-alive"

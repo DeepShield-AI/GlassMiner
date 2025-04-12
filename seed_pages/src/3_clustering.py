@@ -55,11 +55,9 @@ def calculate_structure_similarity(verified_lg_info):
     html_1 = None
     html_2 = None
     for i in range(len(verified_lg_info)):
-        with open(os.path.join(SAVE_DIR, verified_lg_info[i]["filename"])) as f:
-            html_1 = f.read()
+        html_1 = verified_lg_info[i]["content"]
         for j in range(i+1, len(verified_lg_info)):
-            with open(os.path.join(SAVE_DIR, verified_lg_info[j]["filename"])) as f:
-                html_2 = f.read()
+            html_2 = verified_lg_info[j]["content"]
             pair_count += 1
             mat_sim[i][j] = sequence_similarity(html_1, html_2)
             if pair_count % 10000 == 0:
@@ -127,6 +125,7 @@ if __name__ == "__main__":
                 seed_content = f.read()
                 if len(seed_content) < TEXT_LEN_MIN_THRESHOLD:
                     continue
+                seed_content = parse_html(seed_content)
             # Tokinize the page content, and store to the 
             tokens = tokinize_text(seed_content)
             tokinized_content[url] = tokens

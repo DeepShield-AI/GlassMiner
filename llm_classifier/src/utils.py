@@ -6,6 +6,8 @@ import regex as re
 import warnings
 import html2text
 import requests
+import zstandard as zstd
+import io
 
 from configs import *
 
@@ -117,7 +119,7 @@ def collect_text_in_order(html_str):
     text = " ".join(filtered_lines)
     text = meta_text + " " + text
     text = re.sub(r"\s+", " ", text)
-    link_matches = re.findall(RTN_LINK, text)
+    link_matches = re.findall(PTN_LINK, text)
     # two groups, the first group is the text, the second group is the link
     for match in link_matches:
         # check if the first group contains filter words, if not, remove the link
@@ -286,8 +288,17 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
                 "success": False
             }
         else:
-            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-            response_text = response.text
+            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True, stream=True)
+            # check if the content encoding is zstandard
+            if response.headers.get('Content-Encoding') == 'zstd':
+                # decompress the content
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(io.BytesIO(response.raw.read())) as reader:
+                    decompressed = reader.read()
+                    response_text = decompressed.decode("utf-8")
+            else:
+                response_text = response.text
+            final_url = response.url.rstrip('/')
             final_url = response.url.rstrip('/')            
     except Exception as e:
         if retry_count < MAX_RETRY:

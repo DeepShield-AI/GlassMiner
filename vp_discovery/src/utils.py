@@ -8,13 +8,26 @@ import regex as re
 from math import log2
 import html2text
 from difflib import SequenceMatcher
-from niteru.html_parser import parse_html
+import zstandard as zstd
+import io
 
 from configs import *
 
 requests.packages.urllib3.disable_warnings()
 context = ssl.create_default_context()
 context.set_ciphers('HIGH:!DH:!aNULL')
+
+class CustomHTMLParser(html2text.HTML2Text):
+    """
+    Custom HTML parser to handle specific cases.
+    """
+    def __init__(self):
+        super().__init__()
+
+        self.ignore_emphasis = True
+        self.ignore_links = True
+        self.single_line_break = True
+        self.body_width = 0
 
 # For structure similarity computation.
 class StructuralComparator(SequenceMatcher):
@@ -32,19 +45,10 @@ class StructuralComparator(SequenceMatcher):
     
     def ratio(self) -> float:
         matches = sum(triple[-1] for triple in self.get_matching_blocks())
-        min_len = min(len(self.a), len(self.b))
-        log_max_len = log2(max(len(self.a), len(self.b)))
-        return 1.0 * matches / (min_len + log_max_len)
-
-def request_with_random_header(url: str) -> BeautifulSoup | None:
-    """
-    Send a request to the target URL with a random User-Agent
-    """
-    header = BASE_HEADER
-    header["User-Agent"] = random.choice(USER_AGENT_LIST)
-    response = requests.get(url, headers=header)
-    soup = parse_webpages(response.text)
-    return soup
+        modified_len = min(len(self.a), len(self.b)) + log2(max(len(self.a), len(self.b)))
+        if modified_len == 0:
+            return 0
+        return 1.0 * matches / modified_len
 
 def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
     header = BASE_HEADER
@@ -60,9 +64,17 @@ def fetch_one_page(url, session: requests.Session, retry_count=0) -> dict:
                 "success": False
             }
         else:
-            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True)
-            response_text = response.text
-            final_url = response.url.rstrip('/')            
+            response = session.get(url, timeout=TIMEOUT, headers=header, verify=False, allow_redirects=True, stream=True)
+            # check if the content encoding is zstandard
+            if response.headers.get('Content-Encoding') == 'zstd':
+                # decompress the content
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(io.BytesIO(response.raw.read())) as reader:
+                    decompressed = reader.read()
+                    response_text = decompressed.decode("utf-8")
+            else:
+                response_text = response.text
+            final_url = response.url.rstrip('/')         
     except Exception as e:
         if retry_count < MAX_RETRY:
             return fetch_one_page(url, session, retry_count + 1)
@@ -105,12 +117,7 @@ def contain_filter_words(contents: str) -> bool:
             return True
     return False
 
-def is_symbols(token):
-    if re.match(PTN_CHAR, token):
-        return True
-    return False
-
-def parse_webpages(webpage: str) -> BeautifulSoup | None:
+def parse_webpages(webpage) -> BeautifulSoup:
     """
     Adaptive parsing of the webpage content by html parser or lxml parser.
     """
@@ -125,11 +132,64 @@ def parse_webpages(webpage: str) -> BeautifulSoup | None:
         print(f"Error parsing webpage: {e}")
         return None
     return soup
+    
+def is_symbols(token):
+    if re.match(PTN_CHAR, token):
+        return True
+    return False
+
+def collect_text_in_order(html_str):
+    if len(html_str) > 500000:
+        return None
+    # Part one: Extract text in input / meta, change them into direct text
+    soup = parse_webpages(html_str)
+    if soup is None:
+        return None
+    # Find all input with "placeholder" or "value" attributes
+    input_tags = soup.find_all("input")
+    for input_tag in input_tags:
+        text = ""
+        # Check if the input tag has a placeholder or value attribute
+        if "placeholder" in input_tag.attrs:
+            text = input_tag["placeholder"]    
+        elif "value" in input_tag.attrs:
+            text = input_tag["value"]
+        # replace input tags by [Input]:{text}
+        if text:
+            input_tag.replace_with(f"[Input]:{text}")
+    # fing the meta tags with "content" and "name" attributes
+    meta_tags = soup.find_all("meta", attrs={"name": True, "content": True})
+    # repalce meta tags with [Meta]{name}:{content}
+    meta_text = []
+    for meta_tag in meta_tags:
+        # Check if the meta tag has a name attribute
+        name = meta_tag["name"]
+        if "hyperglass" in name or "title" in name or "description" in name:            
+            content = meta_tag["content"]
+            meta_text.append(f"[Meta]:{name}:{content}")
+    meta_text = " ".join(meta_text)
+    # Part two: Extract text in the body
+    html_str = str(soup)
+    handler = CustomHTMLParser()
+    text = handler.handle(html_str)
+    # Split the text by \n
+    lines = text.split("\n")
+    # Remove empty lines and lines with too long words
+    filtered_lines = []
+    for line in lines:
+        # Remove leading and trailing spaces
+        line = line.strip()
+        # Check if the line is empty or contains too long words
+        if len(line) > 0 and len(line) < TEXT_LEN_MAX_THRESHOLD:
+            filtered_lines.append(line)
+    # Join the filtered lines into a single string
+    text = " ".join(filtered_lines)
+    text = meta_text + " " + text
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 def sequence_similarity(html_1: str, html_2: str):
     comparator = StructuralComparator()
-    parsed1 = parse_html(html_1)
-    parsed2 = parse_html(html_2)
-    comparator.set_seq1(parsed1.tags)
-    comparator.set_seq2(parsed2.tags)
+    comparator.set_seq1(html_1.tags)
+    comparator.set_seq2(html_2.tags)
     return comparator.ratio()
