@@ -19,7 +19,7 @@ DUP_FILE = "dict_hash_contents.json"
 
 # crawler configs
 MAX_RETRY = 2
-TIMEOUT = 30
+TIMEOUT = 10
 MAX_WORKERS = 24
 # A list of headers to avoid being blocked
 USER_AGENT_LIST = [

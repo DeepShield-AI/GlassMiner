@@ -14,19 +14,23 @@ from configs import *
 from utils import *
 from templates import *
 
-TEST_DIR = os.path.join(DATA_DIR, "..", "test")
-TMP_DIR = os.path.join(TEST_DIR, "downloaded")
-
 def analyse_template_by_cluster(clusters):
     """
     Analyse the templates of the webpages in each cluster.
     """
     total_vp_list = []
+    total_process_count = 0
     for cluster_id, cluster in clusters.items():
+        if cluster_id == "structure_cluster_0":
+            print(f"Skip the bgp.he.net cluster.")
+            continue
         print(f"Cluster {cluster_id}:")
         for url in cluster:
+            total_process_count += 1
+            if total_process_count % 100 == 0:
+                print(f"Processing {total_process_count} urls, {len(total_vp_list)} VPs found.")
             file_name = url_to_filename(url)
-            file_path = os.path.join(TMP_DIR, file_name)
+            file_path = os.path.join(SAVE_DIR, file_name)
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     html_text = f.read()

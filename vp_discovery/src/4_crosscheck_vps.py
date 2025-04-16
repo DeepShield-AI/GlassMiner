@@ -1,5 +1,6 @@
 # Accroding to the result in 3_discover_vps.py and all the tcpdump files, 
 # cross check to find the ip of unknown VPs
+from collections import defaultdict
 import dpkt
 import socket
 import sys
@@ -13,18 +14,44 @@ from pytz import timezone
 from configs import *
 from utils import *
 
-result_each_time = []
 
 def get_valid_ip(src, dst, idx):
     if (src == HOSTS[idx]['public_ip']) or (src == HOSTS[idx]['private_ip']):
         return dst
     else:
         return src
-        
+    
+def get_the_responsive_vps(dict_intersection_candidates, dict_threshold_candidates, set_confirmed_ip):
+    new_lg_dict = {}
+    for lg_idx in dict_intersection_candidates:
+        ip_addr = None
+        intersection_candidates = dict_intersection_candidates[lg_idx] - set_confirmed_ip
+        threshold_candidates = dict_threshold_candidates[lg_idx] - set_confirmed_ip
+        if len(intersection_candidates) == 1:
+            ip_addr = intersection_candidates.pop()
+        elif len(threshold_candidates) == 1:
+            ip_addr = threshold_candidates.pop()
+        if ip_addr:
+            set_confirmed_ip.add(ip_addr)
+            new_lg_dict[lg_idx] = ip_addr
+    print('----------------------')
+    print(f'{len(new_lg_list)} new VPs have been found.')
+    return new_lg_dict, set_confirmed_ip
+
+
+def binary_search_timestamp(timestamps, target_time):
+    left, right = 0, len(timestamps) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if timestamps[mid][0] <= target_time:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return left
+
 if __name__ == "__main__":
     unknown_vp_list = json.load(open(os.path.join(OUTPUT_DIR, "unknown_vp_list.json"), "r"))
-    # only choose the first 100 VPs for testing
-    unknown_vp_list = unknown_vp_list[:100]
+    unknown_vp_list = unknown_vp_list
     # start_time & end_time timestamp list
     time_lists = []
     vp_num = len(unknown_vp_list)
@@ -41,10 +68,11 @@ if __name__ == "__main__":
                 time_list.append((start_time, end_time))
         time_lists.append(time_list)
 
-    ip_count_list = [{} for idx in range(vp_num)]
+    print("Start reading pcap files...")
 
     # log the timestamp of the icmp packet
     icmp_timestamp_list = [[] for _ in range(len(HOSTS))]
+    read_count = 0
     for m_idx in range(0, len(HOSTS)):
         with open(os.path.join(OUTPUT_DIR, HOSTS[m_idx]['local_path']), 'rb') as fr:
             pcap = dpkt.pcap.Reader(fr)
@@ -62,32 +90,39 @@ if __name__ == "__main__":
                 this_ip = get_valid_ip(src_ip, dst_ip, m_idx)
                 # mark the timestamp of the icmp packet
                 icmp_timestamp_list[m_idx].append((timestamp, this_ip))
+                read_count += 1
+                if read_count % 100000 == 0:
+                    print(f"{read_count} packets have been read.")
             # sort by timestamp, ascending
             icmp_timestamp_list[m_idx].sort(key=operator.itemgetter(0))
-            
+    print("Finished reading pcap files.")
+    
     # intersection the icmp timestamp with time_list duration 
-    intersect_list = [[set() for _ in range(vp_num)] for _ in range(len(HOSTS))]
+    intersect_dict = defaultdict(lambda: defaultdict(set))
     for m_idx in range(0, len(HOSTS)):
         for lg_idx in range(vp_num):
             start_time, end_time = time_lists[m_idx][lg_idx]
             cur_idx = 0
-            while icmp_timestamp_list[m_idx][cur_idx][0] <= start_time:
-                cur_idx += 1
+            cur_idx = binary_search_timestamp(icmp_timestamp_list[m_idx], start_time)
+                
             for timestamp, this_ip in icmp_timestamp_list[m_idx][cur_idx:]:
                 if timestamp < end_time:
-                    intersect_list[m_idx][lg_idx].add(this_ip)
+                    intersect_dict[m_idx][lg_idx].add(this_ip)
                 else:
                     break
 
     new_lg_list = []
-    bad_lg_info = []
     threshold = 2 * len(HOSTS) / 3
+    processed_count = 0
+    dict_intersection_candidates = {}
+    dict_threshold_candidates = {}
+    dict_total_ip_count = {}
     for lg_idx in range(vp_num):
         intersection_candidates = set()
         threshold_candidates = set()
         show_up_count = {}
         for m_idx in range(len(HOSTS)):
-            for ip in intersect_list[m_idx][lg_idx]:
+            for ip in intersect_dict[m_idx][lg_idx]:
                 if ip not in show_up_count:
                     show_up_count[ip] = 1
                 else:
@@ -96,51 +131,38 @@ if __name__ == "__main__":
                         threshold_candidates.add(ip)
                     if show_up_count == len(HOSTS):
                         intersection_candidates.add(ip)
+                if ip not in dict_total_ip_count:
+                    dict_total_ip_count[ip] = 1
+                else:
+                    dict_total_ip_count[ip] += 1
         print('Intersection candidates:', intersection_candidates)
         print('Threshold candidates:', threshold_candidates)
         print('----------------------')
-        ip_addr = None
-        if len(intersection_candidates) == 1:
-            ip_addr = intersection_candidates.pop()
-        elif len(threshold_candidates) == 1:
-            ip_addr = threshold_candidates.pop()
-        if ip_addr:
-            lg_info = unknown_vp_list[lg_idx]
-            lg_info['ip_addr'] = ip_addr
-            new_lg_list.append(lg_info)
-            geolocation = geolocate_one_vp(lg_info)
-            lg_info['location'] = geolocation
-        else:
-            bad_lg_info.append(unknown_vp_list[lg_idx])
-    print('----------------------')
-    print('New LG list:', len(new_lg_list))
-    print('Bad LG list:', len(bad_lg_info))
+        dict_intersection_candidates[lg_idx] = intersection_candidates
+        dict_threshold_candidates[lg_idx] = threshold_candidates    
     
-    # load the old vp_list
-    old_vp_list = json.load(open(os.path.join(OUTPUT_DIR, "known_vp_list.json"), "r"))
-    dict_new_ip_to_lg = {}
-    raw_total_vp_list = []
-    for vp_info in old_vp_list:
-        raw_total_vp_list.append(vp_info)
-    for vp_info in new_lg_list:
-        raw_total_vp_list.append(vp_info)
-        dict_new_ip_to_lg[vp_info['ip_addr']] = vp_info
+    set_confirmed_ip = set()
+    # Remove the background noise by check the number of ip count
+    # That is, more than 1/3 of the total number
+    for ip, count in dict_total_ip_count.items():
+        if count > 0.5 * vp_num:
+            set_confirmed_ip.add(ip)
+    print("background noise ip:", set_confirmed_ip)
     
-    dict_ip_to_lg = {}
-    for lg_info in raw_total_vp_list:
-        ip_addr = lg_info['ip_addr']
-        if ip_addr not in dict_ip_to_lg:
-            dict_ip_to_lg[ip_addr] = [lg_info]
-        else:
-            dict_ip_to_lg[ip_addr].append(lg_info)
-    unique_lg_list = []
-    for ip_addr, lg_info_list in dict_ip_to_lg.items():
-        if len(lg_info_list) == 1:
-            unique_lg_list.append(lg_info_list[0])
-        elif ip_addr in dict_new_ip_to_lg:
-            unique_lg_list.append(dict_new_ip_to_lg[ip_addr])
-        else:
-            unique_lg_list.append(lg_info_list[0])
+    new_lg_dict, set_confirmed_ip = get_the_responsive_vps(dict_intersection_candidates, dict_threshold_candidates, set_confirmed_ip)
+    
+    while len(new_lg_dict) > 0:
+        for lg_idx in new_lg_dict:
+            ip_addr = new_lg_dict[lg_idx]
+            vp_info = unknown_vp_list[lg_idx]
+            vp_info['ip_addr'] = ip_addr
+            geolocation = geolocate_one_vp(vp_info)
+            vp_info['location'] = geolocation[0]
+            new_lg_list.append(vp_info)
+        new_lg_dict, set_confirmed_ip = get_the_responsive_vps(dict_intersection_candidates, dict_threshold_candidates, set_confirmed_ip)
+                    
     # write to files
-    with open(os.path.join(OUTPUT_DIR, "total_known_vp_list.json"), "w") as f:
-        json.dump(unique_lg_list, f, indent=4)
+    print('----------------------')
+    print('Unique LG list:', len(new_lg_list))
+    with open(os.path.join(OUTPUT_DIR, "active_unknown_vp_list.json"), "w") as f:
+        json.dump(new_lg_list, f, indent=4)
