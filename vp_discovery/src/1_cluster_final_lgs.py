@@ -7,6 +7,7 @@
 import json
 import numpy as np
 import pickle as pkl
+import time
 from disjoint_set import DisjointSet
 from niteru.html_parser import parse_html
 
