@@ -19,14 +19,6 @@ document.addEventListener("DOMContentLoaded", () => {
     groupMap.get(key).push(s);
   });
 
-  // 自定义图标（你也可以替换为更合适的 URL）
-  const customIcon = L.icon({
-    iconUrl: '/assets/images/pin.png',
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24]
-  });
-
   // 绑定 marker 并在点击时更新表格
   groupMap.forEach((group, key) => {
     const [country, city] = key.split("||");

@@ -27,4 +27,12 @@ permalink: /country/
     </tbody>
 </table>
 
-<script src="/assets/js/map.js"></script>
+<script>
+  const customIcon = L.icon({
+    iconUrl: "{{ '/assets/images/pin.png' | relative_url }}",
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24]
+  });
+</script>
+<script src="{{ '/assets/js/map.js' | relative_url }}"></script>

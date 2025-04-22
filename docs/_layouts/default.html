@@ -9,6 +9,12 @@
 
     {%- include header.html -%}
 
+    <script>
+      const servers = {{ site.data.lookingglass | jsonify }};
+    </script>
+    <script src="https://d3js.org/d3.v7.min.js" charset="utf-8"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <main class="page-content" aria-label="Content">
       <div class="wrapper">
         {{ content }}
@@ -16,12 +22,6 @@
     </main>
 
     {%- include footer.html -%}
-
-    <script>
-      const servers = {{ site.data.lookingglass | jsonify }};
-    </script>
-    <script src="https://d3js.org/d3.v7.min.js" charset="utf-8"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   </body>
 
 </html>
