@@ -2,7 +2,7 @@
 
 ## Result List
 
-You can find the result list of our paper [here](https://anonymous.4open.science/w/SIGMOD26-Submission461/)
+You can find the result list of our paper [here](https://glassminer.github.io/GlassMiner/)
 
 ## How to use
 
