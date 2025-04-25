@@ -15,6 +15,25 @@ requests.packages.urllib3.disable_warnings() # type: ignore
 context = ssl.create_default_context()
 context.set_ciphers('HIGH:!DH:!aNULL')
 
+
+API_HEADER = {
+    "Authorization": "Bearer <Your API Key>",
+    "Content-Type": "application/json"
+}
+
+API_URL = "https://api.siliconflow.cn/v1/chat/completions"
+BASE_PROMPT = {
+    "model": "Pro/deepseek-ai/DeepSeek-V3",
+    "stream": False,
+    "max_tokens": 256,
+    "temperature": 0.5,
+    "top_p": 0.7,
+    "top_k": 50,
+    "frequency_penalty": 0.5,
+    "n": 1,
+    "messages": []
+}
+
 class CustomHTMLParser(html2text.HTML2Text):
     """
     Custom HTML parser to handle specific cases.
@@ -171,25 +190,6 @@ def extract_context_around_keywords(content: str) -> str | None:
             context_list.append(content[start:end])
         content = " ".join(context_list)
     return content
-
-API_HEADER = {
-    "Authorization": "Bearer sk-rtuqjzffquusvhiehxfoxzloijofreqgtednlonthmfsotsi",
-    "Content-Type": "application/json"
-}
-API_URL = "https://api.siliconflow.cn/v1/chat/completions"
-
-
-base_prompt = {
-    "model": "Pro/deepseek-ai/DeepSeek-V3",
-    "stream": False,
-    "max_tokens": 256,
-    "temperature": 0.5,
-    "top_p": 0.7,
-    "top_k": 50,
-    "frequency_penalty": 0.5,
-    "n": 1,
-    "messages": []
-}
 
 def request_llm_and_get_response(payload):
     """

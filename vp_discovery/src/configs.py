@@ -77,22 +77,22 @@ STRUC_THRESHOLD = 0.8  # The threshold of the Jaccard similarity for clustering
 # 定义主机信息结构
 HOSTS = [
     {
-        "public_ip": "115.29.214.24",
-        "private_ip": "172.18.93.141",
+        "public_ip": "<Your Public IP Address #1>",
+        "private_ip": "<Your Private IP Address #1>",
         "username": "root",
         "pcap_path": "~/0_receive.pcap",
         "local_path": "0_receive.pcap",
     },
     {
-        "public_ip": "8.148.231.184",
-        "private_ip": "172.20.147.16",
+        "public_ip": "<Your Public IP Address #2>",
+        "private_ip": "<Your Private IP Address #2>",
         "username": "root",
         "pcap_path": "~/1_receive.pcap",
         "local_path": "1_receive.pcap",
     },
     {
-        "public_ip": "101.201.39.233",
-        "private_ip": "172.31.196.251",
+        "public_ip": "<Your Public IP Address #3>",
+        "private_ip": "<Your Private IP Address #3>",
         "username": "root",
         "pcap_path": "~/2_receive.pcap",
         "local_path": "2_receive.pcap",
