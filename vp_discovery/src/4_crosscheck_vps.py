@@ -9,7 +9,6 @@ import pickle
 import operator
 import ast
 import json
-from pytz import timezone
 
 from configs import *
 from utils import *

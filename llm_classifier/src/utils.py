@@ -252,9 +252,8 @@ def prompted_binary_classification(html_text):
         "content": """Categorize webpage content: 1. Looking Glass related (link to LG or similar webpages) but no direct service; 2. Direct LG service. If it allows commands (traceroute, ping, etc.), selection of parameters (addresses, etc.), it should be class 2. If it is a whois or network information page or only provide links to LG or similar services, it should be class 1. The input starts with its url, and hyperlinks are presented as `[text](link)`.
         Example A: ```[Ping Testi](https://atlantisnet.com.tr/internet-ping-testi/) *  ##### Yardım * [ Atlantis Looking Glass ](https://lg.atlantisnet.com.tr/)``` All commands are links to other pages but no direct service -> class 1; 
         Example B: ```The only public service offered so far on this server is a [traceroute](/cgi-bin/tracer.cgi) server.``` contains command keywords but only links -> class 1; 
-        Example C: ```Web Technologies Cheat Sheets ## Online Traceroute Your IP address is 107.172.231.79 IP to traceroute to : [Input]: TYPE: [Input]:ICMP [Input]:TCP``` provide traceroute service -> class 2; 
-        Example D: ```[Meta]:og:title:INS BGP looking glass [Meta]:description:International Network Services Network Looking Glass [Meta]:hyperglass * ## FRA Marseille, MRS1 FM * ## ZAF Durban, DMO ZD``` contains `hyperglass` from template LG webpage. -> class 2.
-        Example E: ```www.ip2location.com:...``` or ``` www.peeringdb.com: ...``` are likely information pages -> class 1.
+        Example C: ```[Meta]:og:title:INS BGP looking glass [Meta]:description:International Network Services Network Looking Glass [Meta]:hyperglass * ## FRA Marseille, MRS1 FM * ## ZAF Durban, DMO ZD``` contains `hyperglass` from template LG webpage. -> class 2.
+        Example D: ```www.ip2location.com:...``` or ``` www.peeringdb.com: ...``` are likely information pages -> class 1.
         Output 1 or 2 only.""",
         "role": "system"
     })
