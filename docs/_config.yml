@@ -23,7 +23,7 @@ email: anonymous@none.com
 author: "SIGMOD 2026 - Submission 461"
 description: >- # this means to ignore newlines until "baseurl:"
   This is a demo site for the paper "GlassMiner: A Structural-Semantic Fusion Framework for Mining Internet-Wide Looking Glass Services" submitted to SIGMOD 2026. We demonstrate the discovered Looking Glass VPs and the corresponding network and geolocation information.
-baseurl: "" # the subpath of your site, e.g. /blog
+baseurl: "/GlassMiner" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 github_username: GlassMiner
 github_repository: https://anonymous.4open.science/r/SIGMOD26-Submission461/
